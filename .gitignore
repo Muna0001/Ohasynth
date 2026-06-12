@@ -1,0 +1,14 @@
+# build artifacts
+plugin/build/
+
+# local tooling (portable CMake download)
+.tools/
+
+# macOS
+.DS_Store
+
+# nested initial clone of the GitHub repo (superseded by this repo)
+Ohasynth/
+
+# machine-local Claude Code permissions
+.claude/settings.local.json

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oh-a-synth — Polyphonic Synthesizer</title>
+  <link rel="stylesheet" href="css/juno.css">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <div class="jn-logo">
+        <span class="jn-brand">Oh-a-synth</span>
+        <span class="jn-stripes"><i></i><i></i><i></i><i></i></span>
+        <span class="jn-sub">POLYPHONIC SYNTHESIZER</span>
+      </div>
+      <div class="jn-patchbar">
+        <select id="patch-select" title="Patch"></select>
+        <input id="patch-name" type="text" maxlength="24" placeholder="PATCH NAME" spellcheck="false">
+        <button id="patch-save" type="button">SAVE</button>
+        <button id="patch-delete" type="button">DEL</button>
+        <button id="patch-export" type="button">EXPORT</button>
+        <button id="patch-import" type="button">IMPORT</button>
+        <input id="patch-import-file" type="file" accept=".json,application/json" hidden>
+        <span id="midi-status">MIDI: …</span>
+      </div>
+    </header>
+
+    <main id="panel"></main>
+
+    <section id="bottom">
+      <div id="bender"></div>
+      <div id="keyboard"></div>
+      <div id="kbd-help">Z / X : octave &nbsp;·&nbsp; A W S E D F T G Y H U J … : play</div>
+    </section>
+  </div>
+
+  <script src="js/engine/worklet.js"></script>
+  <script src="js/engine/engine.js"></script>
+  <script src="js/engine/presets.js"></script>
+  <script src="js/ui/panel.js"></script>
+  <script src="js/ui/keyboard.js"></script>
+  <script src="js/ui/midi.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
