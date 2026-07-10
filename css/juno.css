@@ -338,6 +338,24 @@ html, body {
   color: #8a8270;
   pointer-events: none;
 }
+#audio-hint {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translate(-50%, -80px);
+  background: var(--red);
+  color: #fff;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  padding: 9px 16px;
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  transition: transform 0.25s ease-out;
+  pointer-events: none;
+  z-index: 60;
+}
+#audio-hint.show { transform: translate(-50%, 0); }
+
 #kbd-help {
   position: absolute;
   right: 18px; top: -1px;

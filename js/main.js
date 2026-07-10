@@ -136,6 +136,21 @@
       window.removeEventListener('keydown', powerOn, { capture: true });
     });
 
+    // MIDI input is not a user gesture, so playing an external keyboard
+    // before touching the page leaves audio suspended — the synth hears
+    // the notes but cannot sound. Show a banner explaining the one click
+    // it takes to unblock.
+    var audioHint = document.createElement('div');
+    audioHint.id = 'audio-hint';
+    audioHint.textContent = '🔊 Audio is blocked by the browser — click anywhere to enable sound';
+    document.body.appendChild(audioHint);
+    engine.on('note', function () {
+      setTimeout(function () {
+        if (!engine.running) audioHint.classList.add('show');
+      }, 250);
+    });
+    engine.on('started', function () { audioHint.classList.remove('show'); });
+
     // load the first factory preset so it sounds great immediately
     rebuildSelect('f:0');
     applySelection();
