@@ -106,13 +106,18 @@ and saved with the DAW project; the 8 factory presets are exposed as plugin
 programs and from a preset menu in the editor.
 
 Build (requires CMake ≥ 3.22 and Xcode command-line tools; JUCE 8 is fetched
-automatically):
+automatically). The app icon comes from `assets/icon.png`:
 
 ```sh
 cd plugin
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 cmake --build build --config Release -j8
 ```
+
+`CMAKE_OSX_ARCHITECTURES` makes a universal binary that runs on both Apple
+Silicon and Intel; drop it to build only for the current machine.
 
 The build auto-installs the plugins for the current user:
 
@@ -120,7 +125,28 @@ The build auto-installs the plugins for the current user:
 - VST3: `~/Library/Audio/Plug-Ins/VST3/Oh-a-synth.vst3`
 - Standalone app: `plugin/build/OhASynth_artefacts/Release/Standalone/`
 
+If a build fails with `'TargetConditionals.h' file not found`, the Xcode
+command-line tools were updated and the cached SDK path is stale — delete
+`plugin/build` and reconfigure.
+
 In Logic: rescan via Logic Pro → Settings → Plug-in Manager (or just
 restart Logic), then insert **AU Instruments → Oh-a-synth → Oh-a-synth** on
 as many software-instrument tracks as you like — every instance is
 independent. Validate manually with `auval -v aumu Oha1 Ohas`.
+
+## Standalone macOS app
+
+The same synth also builds as a normal double-clickable Mac app — no DAW and
+no browser involved. Install it with:
+
+```sh
+./install-app.sh
+```
+
+That copies the built app into `/Applications`, so it appears in Launchpad,
+Spotlight, and the Dock like any other app. Launch it and play with the
+on-screen keyboard or an attached MIDI keyboard.
+
+Audio and MIDI devices are chosen in the app's own **Options → Audio/MIDI
+Settings** panel (top-left of the window). If a newly connected MIDI
+keyboard isn't responding, enable it there under "Active MIDI inputs".

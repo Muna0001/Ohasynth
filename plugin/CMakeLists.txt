@@ -17,6 +17,7 @@ FetchContent_MakeAvailable(JUCE)
 juce_add_plugin(OhASynth
   COMPANY_NAME "Oh-a-synth"
   BUNDLE_ID com.ohasynth.plugin
+  ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/../assets/icon.png"
   IS_SYNTH TRUE
   NEEDS_MIDI_INPUT TRUE
   NEEDS_MIDI_OUTPUT FALSE
