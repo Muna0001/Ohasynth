@@ -15,13 +15,13 @@
   }
 
   window.addEventListener('DOMContentLoaded', function () {
-    var engine = new Juno.Engine();
-    window.junoEngine = engine; // handy for debugging / headless use
+    var engine = new Oha.Engine();
+    window.ohaEngine = engine; // handy for debugging / headless use
 
-    Juno.buildPanel(engine, document.getElementById('panel'));
-    Juno.buildBender(engine, document.getElementById('bender'));
-    Juno.buildKeyboard(engine, document.getElementById('keyboard'));
-    Juno.initMIDI(engine, document.getElementById('midi-status'));
+    Oha.buildPanel(engine, document.getElementById('panel'));
+    Oha.buildBender(engine, document.getElementById('bender'));
+    Oha.buildKeyboard(engine, document.getElementById('keyboard'));
+    Oha.initMIDI(engine, document.getElementById('midi-status'));
 
     // ----- patch bar ------------------------------------------------
     var sel = document.getElementById('patch-select');
@@ -32,7 +32,7 @@
       sel.innerHTML = '';
       var ogF = document.createElement('optgroup');
       ogF.label = 'Factory';
-      Juno.PRESETS.forEach(function (p, i) {
+      Oha.PRESETS.forEach(function (p, i) {
         var o = document.createElement('option');
         o.value = 'f:' + i;
         o.textContent = p.name;
@@ -57,7 +57,7 @@
     function applySelection() {
       var v = sel.value;
       var p = null;
-      if (v.slice(0, 2) === 'f:') p = Juno.PRESETS[+v.slice(2)];
+      if (v.slice(0, 2) === 'f:') p = Oha.PRESETS[+v.slice(2)];
       else if (v.slice(0, 2) === 'u:') p = userPatches[v.slice(2)];
       if (!p) return;
       engine.loadPatch(p);

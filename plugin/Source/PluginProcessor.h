@@ -2,7 +2,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
-#include "JunoDSP.h"
+#include "OhaDSP.h"
 #include "Presets.h"
 
 class OhASynthProcessor : public juce::AudioProcessor {
@@ -23,7 +23,7 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 12.0; }
 
-    int getNumPrograms() override { return (int) juno::factoryPresets().size(); }
+    int getNumPrograms() override { return (int) oha::factoryPresets().size(); }
     int getCurrentProgram() override { return currentProgram; }
     void setCurrentProgram(int index) override;
     const juce::String getProgramName(int index) override;
@@ -49,7 +49,7 @@ private:
             * bendDco, * bendVcf, * velSens, * volume;
     } raw {};
 
-    juno::Engine engine;
+    oha::Engine engine;
     int currentProgram = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OhASynthProcessor)

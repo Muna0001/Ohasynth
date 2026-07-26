@@ -1,4 +1,4 @@
-/* JUNO-106 — charcoal panel, cream legends, colored accents */
+/* Oh-a-synth — charcoal panel, cream legends, colored accents */
 
 :root {
   --panel: #2b2b30;
@@ -44,25 +44,25 @@ html, body {
   padding: 10px 16px;
 }
 
-.jn-logo { display: flex; align-items: baseline; gap: 14px; }
-.jn-brand {
+.oha-logo { display: flex; align-items: baseline; gap: 14px; }
+.oha-brand {
   font-style: italic;
   font-weight: 800;
   font-size: 1.4rem;
   letter-spacing: 0.03em;
 }
-.jn-stripes { display: inline-flex; gap: 2px; align-self: center; }
-.jn-stripes i { width: 5px; height: 16px; display: block; }
-.jn-stripes i:nth-child(1) { background: var(--red); }
-.jn-stripes i:nth-child(2) { background: var(--orange); }
-.jn-stripes i:nth-child(3) { background: var(--yellow); }
-.jn-stripes i:nth-child(4) { background: var(--blue); }
-.jn-sub { font-size: 0.7rem; letter-spacing: 0.25em; color: var(--cream-dim); }
+.oha-stripes { display: inline-flex; gap: 2px; align-self: center; }
+.oha-stripes i { width: 5px; height: 16px; display: block; }
+.oha-stripes i:nth-child(1) { background: var(--red); }
+.oha-stripes i:nth-child(2) { background: var(--orange); }
+.oha-stripes i:nth-child(3) { background: var(--yellow); }
+.oha-stripes i:nth-child(4) { background: var(--blue); }
+.oha-sub { font-size: 0.7rem; letter-spacing: 0.25em; color: var(--cream-dim); }
 
-.jn-patchbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.jn-patchbar select,
-.jn-patchbar input[type="text"],
-.jn-patchbar button {
+.oha-patchbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.oha-patchbar select,
+.oha-patchbar input[type="text"],
+.oha-patchbar button {
   background: var(--panel-2);
   color: var(--cream);
   border: 1px solid #46464c;
@@ -71,9 +71,9 @@ html, body {
   font-size: 0.78rem;
   padding: 5px 8px;
 }
-.jn-patchbar input[type="text"] { width: 130px; letter-spacing: 0.05em; }
-.jn-patchbar button { cursor: pointer; letter-spacing: 0.08em; }
-.jn-patchbar button:hover { background: #3a3a40; }
+.oha-patchbar input[type="text"] { width: 130px; letter-spacing: 0.05em; }
+.oha-patchbar button { cursor: pointer; letter-spacing: 0.08em; }
+.oha-patchbar button:hover { background: #3a3a40; }
 #midi-status {
   font-size: 0.72rem;
   color: var(--cream-dim);
@@ -96,7 +96,7 @@ html, body {
   overflow-x: auto;
 }
 
-.jn-section {
+.oha-section {
   display: flex;
   flex-direction: column;
   background: var(--panel-2);
@@ -104,7 +104,7 @@ html, body {
   border-radius: 6px;
   flex: 0 0 auto;
 }
-.jn-sec-head {
+.oha-sec-head {
   --accent: var(--cream-dim);
   font-size: 0.72rem;
   font-weight: 700;
@@ -114,7 +114,7 @@ html, body {
   border-bottom: 2px solid var(--accent);
   color: var(--cream);
 }
-.jn-sec-body {
+.oha-sec-body {
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -123,8 +123,8 @@ html, body {
 }
 
 /* ---------- vertical sliders ---------- */
-.jn-sl { display: flex; flex-direction: column; align-items: center; width: 32px; }
-.jn-sl-track {
+.oha-sl { display: flex; flex-direction: column; align-items: center; width: 32px; }
+.oha-sl-track {
   position: relative;
   width: 24px;
   height: 130px;
@@ -136,7 +136,7 @@ html, body {
   cursor: ns-resize;
   touch-action: none;
 }
-.jn-sl-track::before {
+.oha-sl-track::before {
   content: "";
   position: absolute;
   left: 50%; top: 4px; bottom: 4px;
@@ -145,7 +145,7 @@ html, body {
   background: #0a0a0b;
   border-radius: 2px;
 }
-.jn-sl-fill {
+.oha-sl-fill {
   position: absolute;
   left: 50%; bottom: 4px;
   width: 4px;
@@ -154,7 +154,7 @@ html, body {
   border-radius: 2px;
   pointer-events: none;
 }
-.jn-sl-thumb {
+.oha-sl-thumb {
   position: absolute;
   left: 50%;
   width: 24px; height: 14px;
@@ -165,7 +165,7 @@ html, body {
   pointer-events: none;
   box-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
-.jn-sl-thumb::after {
+.oha-sl-thumb::after {
   content: "";
   position: absolute;
   left: 2px; right: 2px; top: 50%;
@@ -173,7 +173,7 @@ html, body {
   margin-top: -1px;
   background: var(--cream);
 }
-.jn-sl-label {
+.oha-sl-label {
   margin-top: 6px;
   font-size: 0.62rem;
   letter-spacing: 0.08em;
@@ -181,12 +181,12 @@ html, body {
   text-align: center;
   white-space: nowrap;
 }
-.jn-sl-small .jn-sl-track { height: 64px; }
+.oha-sl-small .oha-sl-track { height: 64px; }
 
 /* ---------- segmented switches ---------- */
-.jn-seg { display: flex; flex-direction: column; align-items: center; width: 40px; }
-.jn-seg-btns { display: flex; flex-direction: column-reverse; gap: 2px; }
-.jn-seg-btn {
+.oha-seg { display: flex; flex-direction: column; align-items: center; width: 40px; }
+.oha-seg-btns { display: flex; flex-direction: column-reverse; gap: 2px; }
+.oha-seg-btn {
   font: inherit;
   font-size: 0.62rem;
   letter-spacing: 0.05em;
@@ -198,16 +198,16 @@ html, body {
   min-width: 36px;
   cursor: pointer;
 }
-.jn-seg-btn:hover { color: var(--cream); }
-.jn-seg-btn.on {
+.oha-seg-btn:hover { color: var(--cream); }
+.oha-seg-btn.on {
   background: #3d3d45;
   color: var(--cream);
   box-shadow: inset 0 0 0 1px #55555e, 0 0 6px rgba(255,255,255,0.06);
 }
 
 /* ---------- chorus buttons ---------- */
-.jn-chorus { display: flex; gap: 8px; align-items: flex-end; padding-bottom: 14px; }
-.jn-ch-btn {
+.oha-chorus { display: flex; gap: 8px; align-items: flex-end; padding-bottom: 14px; }
+.oha-ch-btn {
   font: inherit;
   font-weight: 700;
   font-size: 0.8rem;
@@ -223,13 +223,13 @@ html, body {
   justify-content: center;
   gap: 5px;
 }
-.jn-led {
+.oha-led {
   width: 8px; height: 8px;
   border-radius: 50%;
   background: #4a1410;
   box-shadow: inset 0 0 2px #000;
 }
-.jn-ch-btn.on .jn-led {
+.oha-ch-btn.on .oha-led {
   background: var(--led);
   box-shadow: 0 0 8px var(--led);
 }
@@ -248,7 +248,7 @@ html, body {
 }
 
 #bender { display: flex; align-items: center; }
-.jn-bend-box {
+.oha-bend-box {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -257,9 +257,9 @@ html, body {
   border-radius: 6px;
   padding: 10px;
 }
-.jn-bend-levers { display: flex; flex-direction: column; gap: 8px; align-items: center; }
-.jn-bender { display: flex; flex-direction: column; align-items: center; }
-.jn-bender-track {
+.oha-bend-levers { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.oha-bender { display: flex; flex-direction: column; align-items: center; }
+.oha-bender-track {
   position: relative;
   width: 110px; height: 34px;
   background: linear-gradient(#1a1a1d, #232327);
@@ -268,7 +268,7 @@ html, body {
   cursor: ew-resize;
   touch-action: none;
 }
-.jn-bender-track::before {
+.oha-bender-track::before {
   content: "";
   position: absolute;
   top: 4px; bottom: 4px; left: 50%;
@@ -276,7 +276,7 @@ html, body {
   margin-left: -1px;
   background: #46464c;
 }
-.jn-bender-lever {
+.oha-bender-lever {
   position: absolute;
   top: 3px; bottom: 3px;
   width: 14px;
@@ -287,7 +287,7 @@ html, body {
   pointer-events: none;
   transition: left 0.08s ease-out;
 }
-.jn-trig-btn {
+.oha-trig-btn {
   font: inherit;
   font-size: 0.6rem;
   letter-spacing: 0.1em;
@@ -298,14 +298,14 @@ html, body {
   padding: 5px 10px;
   cursor: pointer;
 }
-.jn-trig-btn.on { color: var(--cream); background: #3d3d45; }
-.jn-bend-minis { display: flex; gap: 4px; }
-.jn-bend-minis .jn-sl { width: 30px; }
-.jn-bend-minis .jn-sl-track { width: 20px; }
+.oha-trig-btn.on { color: var(--cream); background: #3d3d45; }
+.oha-bend-minis { display: flex; gap: 4px; }
+.oha-bend-minis .oha-sl { width: 30px; }
+.oha-bend-minis .oha-sl-track { width: 20px; }
 
 /* ---------- keyboard ---------- */
 #keyboard { flex: 1; position: relative; min-width: 600px; }
-.jn-kbd {
+.oha-kbd {
   position: relative;
   height: 150px;
   background: #0d0d0f;
@@ -313,24 +313,24 @@ html, body {
   overflow: hidden;
   touch-action: none;
 }
-.jn-key { position: absolute; top: 0; cursor: pointer; }
-.jn-key-w {
+.oha-key { position: absolute; top: 0; cursor: pointer; }
+.oha-key-w {
   height: 100%;
   background: linear-gradient(#f4efe2, #e7e0cd);
   border: 1px solid #b6ae99;
   border-radius: 0 0 3px 3px;
   z-index: 1;
 }
-.jn-key-w.held { background: linear-gradient(#d8d2bf, #c9c2ac); }
-.jn-key-b {
+.oha-key-w.held { background: linear-gradient(#d8d2bf, #c9c2ac); }
+.oha-key-b {
   height: 62%;
   background: linear-gradient(#3a3a3e, #141416);
   border: 1px solid #000;
   border-radius: 0 0 3px 3px;
   z-index: 2;
 }
-.jn-key-b.held { background: linear-gradient(#5a5a60, #2c2c30); }
-.jn-key-lab {
+.oha-key-b.held { background: linear-gradient(#5a5a60, #2c2c30); }
+.oha-key-lab {
   position: absolute;
   bottom: 5px; left: 0; right: 0;
   text-align: center;

@@ -1,11 +1,11 @@
 /*
- * Factory presets. Values follow the normalized schema in Juno.PARAMS.
+ * Factory presets. Values follow the normalized schema in Oha.PARAMS.
  */
 (function () {
   'use strict';
-  window.Juno = window.Juno || {};
+  window.Oha = window.Oha || {};
 
-  Juno.PRESETS = [
+  Oha.PRESETS = [
     {
       name: 'STRINGS 1',
       lfoRate: 0.45, lfoDelay: 0.35,

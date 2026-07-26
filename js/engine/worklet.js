@@ -1,7 +1,7 @@
 /*
- * Juno-106 DSP core — runs inside an AudioWorklet.
+ * Oh-a-synth DSP core — runs inside an AudioWorklet.
  *
- * The whole of Juno.workletMain is stringified and loaded into the
+ * The whole of Oha.workletMain is stringified and loaded into the
  * AudioWorkletGlobalScope via a blob URL (so the app works from file://
  * with zero build steps). It must therefore be fully self-contained:
  * no references to anything outside this function.
@@ -15,9 +15,9 @@
  */
 (function () {
   'use strict';
-  window.Juno = window.Juno || {};
+  window.Oha = window.Oha || {};
 
-  Juno.workletMain = function () {
+  Oha.workletMain = function () {
     'use strict';
 
     var FS = sampleRate;
@@ -162,7 +162,7 @@
     // ------------------------------------------------------------------
     // Processor
     // ------------------------------------------------------------------
-    class JunoProcessor extends AudioWorkletProcessor {
+    class OhaProcessor extends AudioWorkletProcessor {
       constructor() {
         super();
         this.voices = [];
@@ -519,6 +519,6 @@
       }
     }
 
-    registerProcessor('juno-106', JunoProcessor);
+    registerProcessor('oha-synth', OhaProcessor);
   };
 })();

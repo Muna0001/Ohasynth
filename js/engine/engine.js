@@ -1,23 +1,23 @@
 /*
- * Juno.Engine — headless synth engine.
+ * Oha.Engine — headless synth engine.
  *
  * Owns the AudioContext + AudioWorklet node and the current patch state.
  * The UI talks to the engine only through this API, so the engine can be
  * reused without any DOM:
  *
- *   const e = new Juno.Engine();
+ *   const e = new Oha.Engine();
  *   await e.start();            // must be called from a user gesture
  *   e.noteOn(60, 0.8); e.noteOff(60);
  *   e.setParam('vcfFreq', 0.4);
- *   e.loadPatch(Juno.PRESETS[0]);
+ *   e.loadPatch(Oha.PRESETS[0]);
  */
 (function () {
   'use strict';
-  window.Juno = window.Juno || {};
+  window.Oha = window.Oha || {};
 
   // Parameter schema. All sliders are normalized 0..1; switches are small
   // integers. Mapping to real units happens inside the worklet.
-  Juno.PARAMS = {
+  Oha.PARAMS = {
     lfoRate:    { def: 0.40, type: 'slider' },
     lfoDelay:   { def: 0.00, type: 'slider' },
     dcoRange:   { def: 1,    type: 'enum', n: 3 },   // 0=16' 1=8' 2=4'
@@ -48,17 +48,17 @@
     volume:     { def: 0.75, type: 'slider' }
   };
 
-  Juno.defaultPatch = function () {
+  Oha.defaultPatch = function () {
     var p = { name: 'INIT' };
-    for (var k in Juno.PARAMS) p[k] = Juno.PARAMS[k].def;
+    for (var k in Oha.PARAMS) p[k] = Oha.PARAMS[k].def;
     return p;
   };
 
-  Juno.Engine = class {
+  Oha.Engine = class {
     constructor() {
       this.ctx = null;
       this.node = null;
-      this.patch = Juno.defaultPatch();
+      this.patch = Oha.defaultPatch();
       this.held = new Set();
       this.sustained = new Set();
       this.sustainOn = false;
@@ -97,7 +97,7 @@
       var ctx = new (window.AudioContext || window.webkitAudioContext)({
         latencyHint: 'interactive'
       });
-      var code = '(' + Juno.workletMain.toString() + ')();';
+      var code = '(' + Oha.workletMain.toString() + ')();';
 
       // Preferred: AudioWorklet (audio-thread DSP). Module loading needs a
       // URL; blob URLs can be refused on file:// origins in some browsers,
@@ -129,7 +129,7 @@
     async _tryWorklet(ctx, url) {
       try {
         await ctx.audioWorklet.addModule(url);
-        return new AudioWorkletNode(ctx, 'juno-106', {
+        return new AudioWorkletNode(ctx, 'oha-synth', {
           numberOfInputs: 0,
           numberOfOutputs: 1,
           outputChannelCount: [2]
@@ -179,12 +179,12 @@
 
     _patchValues() {
       var v = {};
-      for (var k in Juno.PARAMS) v[k] = this.patch[k];
+      for (var k in Oha.PARAMS) v[k] = this.patch[k];
       return v;
     }
 
     setParam(id, value) {
-      if (!(id in Juno.PARAMS)) return;
+      if (!(id in Oha.PARAMS)) return;
       this.patch[id] = value;
       this._send({ type: 'param', id: id, value: value });
       this._emit('param', id, value);
@@ -195,7 +195,7 @@
     }
 
     loadPatch(p) {
-      var fresh = Juno.defaultPatch();
+      var fresh = Oha.defaultPatch();
       for (var k in fresh) if (k in p) fresh[k] = p[k];
       fresh.name = p.name || 'UNTITLED';
       this.patch = fresh;

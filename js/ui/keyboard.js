@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  window.Juno = window.Juno || {};
+  window.Oha = window.Oha || {};
 
   var LOW = 36, HIGH = 84; // C2..C6
   var BLACK = { 1: true, 3: true, 6: true, 8: true, 10: true };
@@ -17,10 +17,10 @@
     KeyL: 14, KeyP: 15, Semicolon: 16, Quote: 17
   };
 
-  Juno.buildKeyboard = function (engine, root) {
+  Oha.buildKeyboard = function (engine, root) {
     var keys = {}; // note -> element
     var kb = document.createElement('div');
-    kb.className = 'jn-kbd';
+    kb.className = 'oha-kbd';
     root.appendChild(kb);
 
     var whiteCount = 0;
@@ -31,7 +31,7 @@
     for (n = LOW; n <= HIGH; n++) {
       var isBlack = !!BLACK[n % 12];
       var k = document.createElement('div');
-      k.className = isBlack ? 'jn-key jn-key-b' : 'jn-key jn-key-w';
+      k.className = isBlack ? 'oha-key oha-key-b' : 'oha-key oha-key-w';
       k.dataset.note = n;
       if (isBlack) {
         k.style.left = (wIdx * whiteW - whiteW * 0.3) + '%';
@@ -41,7 +41,7 @@
         k.style.width = whiteW + '%';
         if (n % 12 === 0) {
           var lab = document.createElement('span');
-          lab.className = 'jn-key-lab';
+          lab.className = 'oha-key-lab';
           lab.textContent = 'C' + (n / 12 - 1);
           k.appendChild(lab);
         }
@@ -65,7 +65,7 @@
 
     function noteFromEvent(ev) {
       var t = document.elementFromPoint(ev.clientX, ev.clientY);
-      if (t && t.classList && t.classList.contains('jn-key-lab')) t = t.parentElement;
+      if (t && t.classList && t.classList.contains('oha-key-lab')) t = t.parentElement;
       if (t && t.dataset && t.dataset.note) return +t.dataset.note;
       return null;
     }

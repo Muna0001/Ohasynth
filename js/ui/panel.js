@@ -1,10 +1,10 @@
 /*
- * Panel UI — builds the Juno-106 front panel from the parameter schema
+ * Panel UI — builds the front panel from the parameter schema
  * and keeps controls in sync with the engine (patch loads, MIDI, etc).
  */
 (function () {
   'use strict';
-  window.Juno = window.Juno || {};
+  window.Oha = window.Oha || {};
 
   var controls = {}; // paramId -> { set(value) }
 
@@ -21,11 +21,11 @@
   // ---------------------------------------------------------------
   function vslider(engine, id, label, opts) {
     opts = opts || {};
-    var wrap = el('div', 'jn-sl' + (opts.small ? ' jn-sl-small' : ''));
-    var track = el('div', 'jn-sl-track', wrap);
-    var fill = el('div', 'jn-sl-fill', track);
-    var thumb = el('div', 'jn-sl-thumb', track);
-    var lab = el('div', 'jn-sl-label', wrap);
+    var wrap = el('div', 'oha-sl' + (opts.small ? ' oha-sl-small' : ''));
+    var track = el('div', 'oha-sl-track', wrap);
+    var fill = el('div', 'oha-sl-fill', track);
+    var thumb = el('div', 'oha-sl-thumb', track);
+    var lab = el('div', 'oha-sl-label', wrap);
     lab.textContent = label;
     wrap.title = label;
 
@@ -62,7 +62,7 @@
       track.addEventListener('pointercancel', up);
     });
     track.addEventListener('dblclick', function () {
-      set(Juno.PARAMS[id] ? Juno.PARAMS[id].def : 0);
+      set(Oha.PARAMS[id] ? Oha.PARAMS[id].def : 0);
     });
     // fine adjust with mouse wheel
     track.addEventListener('wheel', function (ev) {
@@ -80,16 +80,16 @@
   // ---------------------------------------------------------------
   function seg(engine, id, label, options, opts) {
     opts = opts || {};
-    var wrap = el('div', 'jn-seg' + (opts.vertical ? ' jn-seg-v' : ''));
-    var btnWrap = el('div', 'jn-seg-btns', wrap);
+    var wrap = el('div', 'oha-seg' + (opts.vertical ? ' oha-seg-v' : ''));
+    var btnWrap = el('div', 'oha-seg-btns', wrap);
     var btns = options.map(function (opt, i) {
-      var b = el('button', 'jn-seg-btn', btnWrap);
+      var b = el('button', 'oha-seg-btn', btnWrap);
       b.type = 'button';
       b.textContent = opt;
       b.addEventListener('click', function () { set(i); });
       return b;
     });
-    var lab = el('div', 'jn-sl-label', wrap);
+    var lab = el('div', 'oha-sl-label', wrap);
     lab.textContent = label;
 
     var value = 0;
@@ -110,12 +110,12 @@
   // Chorus: two latching buttons like the hardware (both = I+II)
   // ---------------------------------------------------------------
   function chorusButtons(engine) {
-    var wrap = el('div', 'jn-chorus');
+    var wrap = el('div', 'oha-chorus');
     var states = [false, false];
     var btns = [0, 1].map(function (i) {
-      var b = el('button', 'jn-ch-btn', wrap);
+      var b = el('button', 'oha-ch-btn', wrap);
       b.type = 'button';
-      b.innerHTML = '<span class="jn-led"></span>' + (i === 0 ? 'I' : 'II');
+      b.innerHTML = '<span class="oha-led"></span>' + (i === 0 ? 'I' : 'II');
       b.addEventListener('click', function () {
         states[i] = !states[i];
         push();
@@ -141,11 +141,11 @@
   }
 
   function section(parent, name, accent) {
-    var sec = el('section', 'jn-section', parent);
-    var head = el('div', 'jn-sec-head', sec);
+    var sec = el('section', 'oha-section', parent);
+    var head = el('div', 'oha-sec-head', sec);
     head.textContent = name;
     if (accent) head.style.setProperty('--accent', accent);
-    var body = el('div', 'jn-sec-body', sec);
+    var body = el('div', 'oha-sec-body', sec);
     return body;
   }
 
@@ -153,10 +153,10 @@
   // Bender (springs back to center)
   // ---------------------------------------------------------------
   function bender(engine) {
-    var wrap = el('div', 'jn-bender');
-    var track = el('div', 'jn-bender-track', wrap);
-    var lever = el('div', 'jn-bender-lever', track);
-    var lab = el('div', 'jn-sl-label', wrap);
+    var wrap = el('div', 'oha-bender');
+    var track = el('div', 'oha-bender-track', wrap);
+    var lever = el('div', 'oha-bender-lever', track);
+    var lab = el('div', 'oha-sl-label', wrap);
     lab.textContent = 'BENDER';
 
     var value = 0;
@@ -192,7 +192,7 @@
   }
 
   function lfoTrigButton(engine) {
-    var b = el('button', 'jn-trig-btn');
+    var b = el('button', 'oha-trig-btn');
     b.type = 'button';
     b.textContent = 'LFO TRIG';
     function down(ev) { ev.preventDefault(); b.classList.add('on'); engine.lfoTrig(true); }
@@ -206,7 +206,7 @@
   // ---------------------------------------------------------------
   // Panel assembly
   // ---------------------------------------------------------------
-  Juno.buildPanel = function (engine, root) {
+  Oha.buildPanel = function (engine, root) {
     // left block: volume
     var left = section(root, 'MAIN', '#c8413b');
     left.appendChild(vslider(engine, 'volume', 'VOLUME'));
@@ -260,12 +260,12 @@
     return controls;
   };
 
-  Juno.buildBender = function (engine, root) {
-    var box = el('div', 'jn-bend-box', root);
-    var levers = el('div', 'jn-bend-levers', box);
+  Oha.buildBender = function (engine, root) {
+    var box = el('div', 'oha-bend-box', root);
+    var levers = el('div', 'oha-bend-levers', box);
     levers.appendChild(bender(engine));
     levers.appendChild(lfoTrigButton(engine));
-    var minis = el('div', 'jn-bend-minis', box);
+    var minis = el('div', 'oha-bend-minis', box);
     minis.appendChild(vslider(engine, 'bendDco', 'DCO', { small: true }));
     minis.appendChild(vslider(engine, 'bendVcf', 'VCF', { small: true }));
   };

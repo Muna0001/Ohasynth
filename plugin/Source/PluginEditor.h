@@ -6,7 +6,7 @@
 
 namespace oha {
 
-// Juno-style palette
+// Panel palette
 namespace col {
     const juce::Colour panel      { 0xff2b2b30 };
     const juce::Colour panel2     { 0xff232327 };

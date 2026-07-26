@@ -287,7 +287,7 @@ OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
     for (auto& s : sections) addAndMakeVisible(*s);
 
     // preset selector
-    const auto& presets = juno::factoryPresets();
+    const auto& presets = oha::factoryPresets();
     for (int i = 0; i < (int) presets.size(); ++i)
         presetBox.addItem(presets[(size_t) i].name, i + 1);
     presetBox.setSelectedId(proc.getCurrentProgram() + 1, juce::dontSendNotification);

@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-namespace juno {
+namespace oha {
 
 struct Preset {
     const char* name;
@@ -100,4 +100,4 @@ inline const std::vector<Preset>& factoryPresets() {
     return presets;
 }
 
-} // namespace juno
+} // namespace oha

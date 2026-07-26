@@ -60,9 +60,9 @@ Files:
 
 ```
 index.html
-css/juno.css           panel styling
+css/ohasynth.css           panel styling
 js/engine/worklet.js   the entire DSP core (runs inside an AudioWorklet)
-js/engine/engine.js    Juno.Engine — headless API (notes, params, patches)
+js/engine/engine.js    Oha.Engine — headless API (notes, params, patches)
 js/engine/presets.js   8 factory patches
 js/ui/panel.js         panel controls built from the param schema
 js/ui/keyboard.js      on-screen + computer keyboard
@@ -70,7 +70,7 @@ js/ui/midi.js          Web MIDI (notes, velocity, bend, CC1, sustain)
 js/main.js             boot + patch save/load/export/import
 ```
 
-The engine is fully headless: `new Juno.Engine()`, `await engine.start()`,
+The engine is fully headless: `new Oha.Engine()`, `await engine.start()`,
 then `noteOn/noteOff/setParam/loadPatch` — no DOM required. The whole signal
 path (6 voices, LFO, envelopes, filter, chorus) runs per-sample inside one
 AudioWorklet processor, so parameter changes are smoothed sample-accurately
@@ -124,7 +124,7 @@ Developer ID.
 
 ## Keeping the two DSP cores in sync
 
-`js/engine/worklet.js` (JavaScript) and `plugin/Source/JunoDSP.h` (C++) are
+`js/engine/worklet.js` (JavaScript) and `plugin/Source/OhaDSP.h` (C++) are
 deliberate line-for-line equivalents: same polyBLEP oscillators, same ZDF
 ladder, same chorus constants, same smoothing time constants. **A change to
 the sound must be made in both files**, or the web and native versions drift
@@ -132,7 +132,7 @@ apart. They are structured identically to make that mechanical.
 
 Likewise `js/engine/presets.js` and `plugin/Source/Presets.h` hold the same 8
 factory patches, and the parameter schema in `js/engine/engine.js`
-(`Juno.PARAMS`) matches `createParameterLayout()` in
+(`Oha.PARAMS`) matches `createParameterLayout()` in
 `plugin/Source/PluginProcessor.cpp`.
 
 ## Voice path (per voice, as on the hardware)

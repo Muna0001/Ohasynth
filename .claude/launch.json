@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "juno",
+      "name": "ohasynth",
       "runtimeExecutable": "node",
       "runtimeArgs": ["serve.js", "8493"],
       "port": 8493

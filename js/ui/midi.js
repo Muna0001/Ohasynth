@@ -8,9 +8,9 @@
  */
 (function () {
   'use strict';
-  window.Juno = window.Juno || {};
+  window.Oha = window.Oha || {};
 
-  Juno.initMIDI = function (engine, statusEl) {
+  Oha.initMIDI = function (engine, statusEl) {
     function setStatus(txt, ok, tooltip) {
       if (!statusEl) return;
       statusEl.textContent = txt;

@@ -73,7 +73,7 @@ bool OhASynthProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 }
 
 void OhASynthProcessor::syncParams() {
-    juno::Params p;
+    oha::Params p;
     p.lfoRate = *raw.lfoRate;       p.lfoDelay = *raw.lfoDelay;
     p.dcoRange = (int) *raw.dcoRange;
     p.dcoLfo = *raw.dcoLfo;         p.dcoPw = *raw.dcoPw;
@@ -134,7 +134,7 @@ void OhASynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
 }
 
 void OhASynthProcessor::setCurrentProgram(int index) {
-    const auto& presets = juno::factoryPresets();
+    const auto& presets = oha::factoryPresets();
     if (index < 0 || index >= (int) presets.size()) return;
     currentProgram = index;
     for (const auto& [id, value] : presets[(size_t) index].values)
@@ -143,7 +143,7 @@ void OhASynthProcessor::setCurrentProgram(int index) {
 }
 
 const juce::String OhASynthProcessor::getProgramName(int index) {
-    const auto& presets = juno::factoryPresets();
+    const auto& presets = oha::factoryPresets();
     if (index < 0 || index >= (int) presets.size()) return {};
     return presets[(size_t) index].name;
 }

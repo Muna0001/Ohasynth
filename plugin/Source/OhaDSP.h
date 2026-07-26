@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace juno {
+namespace oha {
 
 constexpr int kNumVoices = 6;
 
@@ -139,7 +139,7 @@ struct Chorus {
 };
 
 // ---------------------------------------------------------------------
-// Raw patch values, mirrors the web app's Juno.PARAMS schema.
+// Raw patch values, mirrors the web app's Oha.PARAMS schema.
 // Continuous params are normalized 0..1; switches are indices.
 // ---------------------------------------------------------------------
 struct Params {
@@ -487,4 +487,4 @@ private:
     uint32_t noiseState = 0x12345678u;
 };
 
-} // namespace juno
+} // namespace oha
