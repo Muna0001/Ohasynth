@@ -1,24 +1,62 @@
 # Oh-a-synth
 
-A 6-voice emulation of the Roland Juno-106. Two builds share the same DSP:
+A 6-voice emulation of the Roland Juno-106, shipped as **three parts** that
+share one DSP design:
 
-- **Web app** (this directory) — Web Audio API, vanilla JS, zero build steps.
-- **Plugin** (`plugin/`) — JUCE/C++ port that builds an **AU for Logic**, a
-  **VST3**, and a **standalone desktop app**. See "Plugin build" below.
+| Part | What it is | Where it lives |
+|---|---|---|
+| **1. Standalone Mac app** | Double-clickable native app — no DAW, no browser | `plugin/` → `./install-app.sh` |
+| **2. Web app** | Runs in any browser, zero build steps | repo root (`index.html`) |
+| **3. DAW plugin** | AU for Logic + VST3 for everything else | `plugin/` |
 
-## Run it
+Parts 1 and 3 are the same C++ codebase (one CMake build emits the app, the
+AU, and the VST3). Part 2 is the JavaScript implementation. The two DSP cores
+are line-for-line equivalents — see "Keeping the two DSP cores in sync".
+
+---
+
+## Part 1 — Standalone Mac app
+
+The synth as a normal Mac application: it appears in Launchpad, Spotlight, and
+the Dock, and plays with the on-screen keyboard or any attached MIDI keyboard.
+
+Build it (see "Building the C++ parts" below), then:
+
+```sh
+./install-app.sh
+```
+
+That installs to `/Applications/Oh-a-synth.app`, clears the quarantine flag,
+and refreshes Launch Services so the icon and Spotlight entry appear
+immediately. Launch with `open -a Oh-a-synth` or from Launchpad.
+
+Audio and MIDI devices are chosen in the app's own **Options → Audio/MIDI
+Settings** (top-left of the window). If a newly connected MIDI keyboard isn't
+responding, enable it there under "Active MIDI inputs". The current patch is
+saved automatically and restored on next launch.
+
+---
+
+## Part 2 — Web app
 
 - **Easiest:** open `index.html` directly in Chrome/Edge/Firefox. The DSP core
   is loaded into the AudioWorklet via a blob URL specifically so this works
-  from `file://`.
+  from `file://`; if a browser refuses that, the engine falls back to a
+  main-thread renderer so it still makes sound.
 - **Or:** `node serve.js` and open <http://localhost:8493> (any static server
   works).
+- **Or:** the hosted build at <https://muna0001.github.io/Ohasynth/>, deployed
+  from `main` by `.github/workflows/static.yml`.
 
-Click anywhere to power on (browser autoplay policy), then play with the
-mouse, the computer keyboard (`A W S E D F T G Y H U J K O L P ;`, octave
-with `Z`/`X`), or a MIDI keyboard.
+Audio starts on your first click or keypress (browser autoplay policy). Play
+with the mouse, the computer keyboard (`A W S E D F T G Y H U J K O L P ;`,
+octave with `Z`/`X`), or a MIDI keyboard.
 
-## Architecture
+Web MIDI needs Chrome, Edge, or Firefox — **Safari does not support it**. The
+MIDI status in the header names the specific problem when a keyboard isn't
+found, and clicking it re-scans.
+
+Files:
 
 ```
 index.html
@@ -37,6 +75,65 @@ then `noteOn/noteOff/setParam/loadPatch` — no DOM required. The whole signal
 path (6 voices, LFO, envelopes, filter, chorus) runs per-sample inside one
 AudioWorklet processor, so parameter changes are smoothed sample-accurately
 (no zipper noise) and there is no main-thread jitter in the audio.
+
+---
+
+## Part 3 — DAW plugin (Logic / any DAW)
+
+All panel parameters are host-automatable and saved with the DAW project; the
+8 factory presets are exposed as plugin programs and from a preset menu in the
+editor. Every instance is independent, so you can run it on as many tracks as
+you like.
+
+Build it (below), then in Logic: rescan via Logic Pro → Settings → Plug-in
+Manager (or just restart Logic), and insert **AU Instruments → Oh-a-synth →
+Oh-a-synth**. Validate manually with `auval -v aumu Oha1 Ohas`.
+
+## Building the C++ parts (app + plugin)
+
+One build produces all three native artifacts. Requires CMake ≥ 3.22 and the
+Xcode command-line tools; JUCE 8 is fetched automatically. The app icon comes
+from `assets/icon.png` (wired in via JUCE `ICON_BIG`).
+
+```sh
+cd plugin
+cmake -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+cmake --build build --config Release -j8
+```
+
+`CMAKE_OSX_ARCHITECTURES` makes a universal binary that runs on both Apple
+Silicon and Intel; drop it to build only for the current machine.
+
+The plugins auto-install for the current user; the app needs `./install-app.sh`
+(from the repo root):
+
+- Standalone app: `plugin/build/OhASynth_artefacts/Release/Standalone/`
+- AU: `~/Library/Audio/Plug-Ins/Components/Oh-a-synth.component`
+- VST3: `~/Library/Audio/Plug-Ins/VST3/Oh-a-synth.vst3`
+
+**Troubleshooting:** if a build fails with `'TargetConditionals.h' file not
+found`, the Xcode command-line tools were updated and the cached SDK path is
+stale — delete `plugin/build` and reconfigure.
+
+These builds are ad-hoc signed, not notarized. On a Mac other than the build
+machine, Gatekeeper needs `xattr -dr com.apple.quarantine <path>` (or
+right-click → Open) the first time. Proper distribution needs an Apple
+Developer ID.
+
+## Keeping the two DSP cores in sync
+
+`js/engine/worklet.js` (JavaScript) and `plugin/Source/JunoDSP.h` (C++) are
+deliberate line-for-line equivalents: same polyBLEP oscillators, same ZDF
+ladder, same chorus constants, same smoothing time constants. **A change to
+the sound must be made in both files**, or the web and native versions drift
+apart. They are structured identically to make that mechanical.
+
+Likewise `js/engine/presets.js` and `plugin/Source/Presets.h` hold the same 8
+factory patches, and the parameter schema in `js/engine/engine.js`
+(`Juno.PARAMS`) matches `createParameterLayout()` in
+`plugin/Source/PluginProcessor.cpp`.
 
 ## Voice path (per voice, as on the hardware)
 
@@ -96,57 +193,3 @@ I (0.513 Hz, lush), II (0.863 Hz), both = I+II (9.75 Hz fast shallow warble).
 - **Latency** — set by the browser (`latencyHint: 'interactive'`), typically
   3–12 ms; a hardware synth is effectively 0. (The plugin build runs at the
   host's buffer size instead.)
-
-## Plugin build (Logic / any DAW)
-
-The DSP core was ported line-for-line to C++ in
-`plugin/Source/JunoDSP.h` (header-only, no JUCE dependencies), so the web
-and native versions sound the same. All panel parameters are host-automatable
-and saved with the DAW project; the 8 factory presets are exposed as plugin
-programs and from a preset menu in the editor.
-
-Build (requires CMake ≥ 3.22 and Xcode command-line tools; JUCE 8 is fetched
-automatically). The app icon comes from `assets/icon.png`:
-
-```sh
-cd plugin
-cmake -B build -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
-  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-cmake --build build --config Release -j8
-```
-
-`CMAKE_OSX_ARCHITECTURES` makes a universal binary that runs on both Apple
-Silicon and Intel; drop it to build only for the current machine.
-
-The build auto-installs the plugins for the current user:
-
-- AU: `~/Library/Audio/Plug-Ins/Components/Oh-a-synth.component`
-- VST3: `~/Library/Audio/Plug-Ins/VST3/Oh-a-synth.vst3`
-- Standalone app: `plugin/build/OhASynth_artefacts/Release/Standalone/`
-
-If a build fails with `'TargetConditionals.h' file not found`, the Xcode
-command-line tools were updated and the cached SDK path is stale — delete
-`plugin/build` and reconfigure.
-
-In Logic: rescan via Logic Pro → Settings → Plug-in Manager (or just
-restart Logic), then insert **AU Instruments → Oh-a-synth → Oh-a-synth** on
-as many software-instrument tracks as you like — every instance is
-independent. Validate manually with `auval -v aumu Oha1 Ohas`.
-
-## Standalone macOS app
-
-The same synth also builds as a normal double-clickable Mac app — no DAW and
-no browser involved. Install it with:
-
-```sh
-./install-app.sh
-```
-
-That copies the built app into `/Applications`, so it appears in Launchpad,
-Spotlight, and the Dock like any other app. Launch it and play with the
-on-screen keyboard or an attached MIDI keyboard.
-
-Audio and MIDI devices are chosen in the app's own **Options → Audio/MIDI
-Settings** panel (top-left of the window). If a newly connected MIDI
-keyboard isn't responding, enable it there under "Active MIDI inputs".
