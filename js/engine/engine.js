@@ -45,7 +45,29 @@
     bendDco:    { def: 0.1667, type: 'slider' },     // 0..1 => 0..12 semitones
     bendVcf:    { def: 0.00, type: 'slider' },
     velSens:    { def: 0.30, type: 'slider' },
-    volume:     { def: 0.75, type: 'slider' }
+    volume:     { def: 0.75, type: 'slider' },
+    // ----- arpeggiator -----
+    arpOn:      { def: 0,    type: 'enum', n: 2 },
+    arpMode:    { def: 0,    type: 'enum', n: 3 },   // 0=UP 1=UP&DOWN 2=DOWN
+    arpRange:   { def: 0,    type: 'enum', n: 3 },   // 0=1oct 1=2oct 2=3oct
+    arpRate:    { def: 0.545, type: 'slider' },      // snaps to a division when synced
+    arpSync:    { def: 0,    type: 'enum', n: 2 },
+    arpHold:    { def: 0,    type: 'enum', n: 2 },
+    // The one parameter that is not normalized — it is a tempo in BPM,
+    // used when no external clock is running.
+    arpBpm:     { def: 120,  type: 'bpm', min: 40, max: 300 }
+  };
+
+  // Arp note divisions, slow -> fast. Must stay in step with ARP_DIVISIONS
+  // in worklet.js and kArpDivisions in plugin/Source/OhaDSP.h.
+  Oha.ARP_DIVISIONS = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.1875, 0.125, 0.0625];
+  Oha.ARP_LABELS = ['1/1', '1/2.', '1/2', '1/4.', '1/4', '1/8.', '1/8',
+                    '1/16.', '1/16', '1/32.', '1/32', '1/64'];
+
+  // Index of the division the RATE slider currently selects.
+  Oha.arpDivIndex = function (v) {
+    var n = Oha.ARP_DIVISIONS.length;
+    return Math.max(0, Math.min(n - 1, Math.round((+v || 0) * (n - 1))));
   };
 
   Oha.defaultPatch = function () {
@@ -113,6 +135,16 @@
             'data:application/javascript;charset=utf-8,' + encodeURIComponent(code));
       }
       if (!node) node = this._makeScriptProcessorNode(ctx, code);
+
+      // clock status comes back from the DSP so the UI can show whether an
+      // external source is really driving the arp
+      var self = this;
+      if (node.port) {
+        node.port.onmessage = function (e) {
+          if (e.data && e.data.type === 'clock')
+            self._emit('clock', e.data.active, e.data.bpm);
+        };
+      }
 
       node.connect(ctx.destination);
       this.node = node;
@@ -237,6 +269,11 @@
     pitchBend(v) { this._send({ type: 'bend', value: v }); this._emit('bend', v); }
     modWheel(v) { this._send({ type: 'mod', value: v }); this._emit('mod', v); }
     lfoTrig(on) { this._send({ type: 'lfoTrig', value: !!on }); }
+
+    // External MIDI beat clock (24 ticks per quarter note).
+    clockTick()  { this._send({ type: 'clockTick' }); }
+    clockStart() { this._send({ type: 'clockStart' }); }
+    clockStop()  { this._send({ type: 'clockStop' }); }
 
     allNotesOff() {
       this.held.clear();

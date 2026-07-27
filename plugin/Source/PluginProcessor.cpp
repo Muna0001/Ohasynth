@@ -12,7 +12,9 @@ OhASynthProcessor::OhASynthProcessor()
         get("hpf"), get("vcfFreq"), get("vcfRes"), get("vcfPol"), get("vcfEnv"),
         get("vcfLfo"), get("vcfKey"), get("vcaMode"), get("vcaLevel"), get("envA"),
         get("envD"), get("envS"), get("envR"), get("chorus"), get("bendDco"),
-        get("bendVcf"), get("velSens"), get("volume")
+        get("bendVcf"), get("velSens"), get("volume"),
+        get("arpOn"), get("arpMode"), get("arpRange"), get("arpRate"),
+        get("arpSync"), get("arpHold"), get("arpBpm")
     };
     setCurrentProgram(0); // sound great immediately: STRINGS 1
 }
@@ -59,6 +61,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout OhASynthProcessor::createPar
     f("bendVcf", "Bend To VCF", 0.0f);
     f("velSens", "Velocity Sens", 0.30f);
     f("volume", "Volume", 0.75f);
+
+    c("arpOn", "Arp On", { "Off", "On" }, 0);
+    c("arpMode", "Arp Mode", { "Up", "Up & Down", "Down" }, 0);
+    c("arpRange", "Arp Range", { "1 Oct", "2 Oct", "3 Oct" }, 0);
+    f("arpRate", "Arp Rate", 0.545f);
+    c("arpSync", "Arp Sync", { "Off", "On" }, 0);
+    c("arpHold", "Arp Hold", { "Off", "On" }, 0);
+    // the one parameter that is not normalized
+    layout.add(std::make_unique<AudioParameterFloat>(
+        ParameterID { "arpBpm", 1 }, "Arp BPM",
+        juce::NormalisableRange<float>(40.0f, 300.0f, 1.0f), 120.0f));
     return layout;
 }
 
@@ -89,6 +102,10 @@ void OhASynthProcessor::syncParams() {
     p.chorus = (int) *raw.chorus;
     p.bendDco = *raw.bendDco;       p.bendVcf = *raw.bendVcf;
     p.velSens = *raw.velSens;       p.volume = *raw.volume;
+    p.arpOn = (int) *raw.arpOn;     p.arpMode = (int) *raw.arpMode;
+    p.arpRange = (int) *raw.arpRange;
+    p.arpRate = *raw.arpRate;       p.arpSync = (int) *raw.arpSync;
+    p.arpHold = (int) *raw.arpHold; p.arpBpm = *raw.arpBpm;
     engine.setParams(p);
 }
 
@@ -106,6 +123,12 @@ void OhASynthProcessor::handleMidi(const juce::MidiMessage& m) {
         else if (cc == 120 || cc == 123) engine.allNotesOff();
     } else if (m.isAllNotesOff() || m.isAllSoundOff())
         engine.allNotesOff();
+    // External MIDI beat clock — this is how the standalone app syncs, since
+    // it has no host transport. DAWs normally use the playhead instead.
+    else if (m.isMidiClock())       engine.clockTick();
+    else if (m.isMidiStart())       engine.clockStart();
+    else if (m.isMidiContinue())    engine.clockStart();
+    else if (m.isMidiStop())        engine.clockStop();
 }
 
 void OhASynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
@@ -115,6 +138,19 @@ void OhASynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     // merge notes played on the editor's on-screen keyboard
     keyboardState.processNextMidiBuffer(midi, 0, n, true);
     syncParams();
+
+    // Host transport, so a synced arp locks to the DAW's grid. Standalone
+    // has no playhead, which leaves MIDI clock / the manual BPM.
+    double hostBpm = 0.0, hostPpq = -1.0;
+    bool hostPlaying = false;
+    if (auto* ph = getPlayHead()) {
+        if (auto pos = ph->getPosition()) {
+            hostPlaying = pos->getIsPlaying();
+            if (auto bpm = pos->getBpm()) hostBpm = *bpm;
+            if (auto ppq = pos->getPpqPosition()) hostPpq = *ppq;
+        }
+    }
+    engine.setHostTransport(hostBpm, hostPpq, hostPlaying);
 
     // on-screen bender / LFO TRIG (only push on change so incoming MIDI
     // pitch bend isn't overwritten every block)
@@ -138,15 +174,30 @@ void OhASynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     for (int ch = 2; ch < buffer.getNumChannels(); ++ch)
         buffer.clear(ch, 0, n);
     midi.clear();
+
+    // published for the editor's BPM readout
+    clockRunning.store(engine.clockRunning());
+    clockTempo.store(engine.clockTempo());
 }
 
 void OhASynthProcessor::setCurrentProgram(int index) {
     const auto& presets = oha::factoryPresets();
     if (index < 0 || index >= (int) presets.size()) return;
     currentProgram = index;
-    for (const auto& [id, value] : presets[(size_t) index].values)
-        if (auto* p = apvts.getParameter(id))
-            p->setValueNotifyingHost(p->convertTo0to1(value));
+
+    // A preset is the whole panel: anything it does not name goes back to its
+    // default rather than keeping the previous patch's value. This matches
+    // the web app, where loadPatch() starts from defaultPatch().
+    const auto& values = presets[(size_t) index].values;
+    for (auto* p : getParameters()) {
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*>(p)) {
+            const juce::String id = rp->paramID;
+            float target = rp->convertFrom0to1(rp->getDefaultValue());
+            for (const auto& [pid, v] : values)
+                if (id == pid) { target = v; break; }
+            rp->setValueNotifyingHost(rp->convertTo0to1(target));
+        }
+    }
 }
 
 const juce::String OhASynthProcessor::getProgramName(int index) {

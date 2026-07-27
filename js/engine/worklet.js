@@ -64,6 +64,18 @@
     var V_VCA_OFF = [1.0, 0.987, 1.011, 0.992, 1.007, 0.996];
 
     // ------------------------------------------------------------------
+    // Arpeggiator timing
+    // ------------------------------------------------------------------
+    // Note divisions in quarter-note beats per step, ordered slow -> fast:
+    // whole note at the bottom of the RATE slider up to 1/64 at the top,
+    // with a dotted stop before each plain value. Keep this table in step
+    // with Oha.ARP_DIVISIONS (engine.js, for the UI) and kArpDivisions
+    // (plugin/Source/OhaDSP.h).
+    var ARP_DIVISIONS = [4, 3, 2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.1875, 0.125, 0.0625];
+    var ARP_GATE = 0.5;    // fraction of each step the note sounds for
+    var MIDI_PPQN = 24;    // MIDI beat-clock ticks per quarter note
+
+    // ------------------------------------------------------------------
     // Voice
     // ------------------------------------------------------------------
     function Voice(idx) {
@@ -213,6 +225,23 @@
         this.dcL = 0; this.dcLx = 0; this.dcR = 0; this.dcRx = 0;
         this.dcA = 1 - fcCoef(12);
 
+        // ----- arpeggiator -----
+        this.latched = new Set();   // HOLD: chord kept after keys are released
+        this.arpSeq = [];
+        this.arpDirty = true;
+        this.arpStepPos = 0;        // musical position, counted in steps
+        this.arpLastStep = -1;
+        this.arpIdx = 0;
+        this.arpNote = -1;          // note the arp is currently sounding
+        this.arpVel = 0.8;
+        // external MIDI beat clock (the web build has no host tempo; the
+        // plugin adds one — see OhaDSP.h)
+        this.clockActive = false;
+        this.clockTicks = 0;
+        this.clockBpm = 0;
+        this.clockLastTime = -1;
+        this.clockReport = 0;
+
         var self = this;
         this.port.onmessage = function (e) { self.onMsg(e.data); };
       }
@@ -232,7 +261,51 @@
           case 'mod': this.sm.mod.t = clamp(m.value, 0, 1); break;
           case 'lfoTrig': this.lfoTrigHeld = !!m.value; break;
           case 'allOff': this.allOff(); break;
+          case 'clockTick': this.clockTick(); break;
+          case 'clockStart': this.clockStart(); break;
+          case 'clockStop': this.clockActive = false; break;
         }
+      }
+
+      // ---- external MIDI beat clock --------------------------------
+      clockStart() {
+        this.clockActive = true;
+        this.clockTicks = 0;
+        this.clockLastTime = -1;
+        this.arpStepPos = 0;
+        this.arpLastStep = -1;
+        this.arpIdx = 0;
+      }
+
+      clockTick() {
+        var t = currentTime;
+        if (this.clockLastTime >= 0) {
+          var dt = t - this.clockLastTime;
+          // clock bytes reach us through the message port, so individual
+          // gaps jitter; smooth heavily and ignore implausible ones
+          if (dt > 0.0004 && dt < 0.5) {
+            var bpm = 60 / (dt * MIDI_PPQN);
+            this.clockBpm = this.clockBpm > 0 ? this.clockBpm * 0.88 + bpm * 0.12 : bpm;
+          }
+        }
+        this.clockLastTime = t;
+        if (!this.clockActive) { this.clockActive = true; this.clockTicks = 0; }
+        this.clockTicks++;
+        // realign once per beat so we can never drift away from the source
+        if (this.clockTicks % MIDI_PPQN === 0) {
+          var target = (this.clockTicks / MIDI_PPQN) / this.arpBeats();
+          if (Math.abs(target - this.arpStepPos) < 4) this.arpStepPos = target;
+        }
+      }
+
+      arpBeats() {
+        var idx = Math.round(clamp(+this.P.arpRate || 0, 0, 1) * (ARP_DIVISIONS.length - 1));
+        return ARP_DIVISIONS[idx];
+      }
+
+      arpBpm() {
+        if (this.clockActive && this.clockBpm > 0) return this.clockBpm;
+        return clamp(+this.P.arpBpm || 120, 20, 400);
       }
 
       setParam(id, v, deferred) {
@@ -283,15 +356,20 @@
           case 'chorus': this.chorus.setMode(P.chorus | 0); break;
           case 'bendDco': this.bendSemis = v01(P.bendDco) * 12; break;
           case 'velSens': this.velSens = v01(P.velSens); break;
+          case 'arpMode':
+          case 'arpRange':
+            this.arpDirty = true;
+            break;
+          case 'arpOn':
+          case 'arpHold':
+            this.arpRetrigger();
+            break;
         }
         function v01(x) { return clamp(+x || 0, 0, 1); }
       }
 
-      noteOn(note, vel) {
-        note = clamp(note | 0, 0, 127);
-        if (this.heldNotes.size === 0) this.lfoTime = 0; // restart LFO delay
-        this.heldNotes.add(note);
-
+      // ---- voice level: no key tracking, so the arp can use these too ----
+      voiceOn(note, vel) {
         var v = this.findVoice(note);
         v.note = note;
         var vn = clamp(vel == null ? 0.8 : vel, 0.01, 1);
@@ -302,8 +380,7 @@
         v.active = true;
       }
 
-      noteOff(note) {
-        this.heldNotes.delete(note | 0);
+      voiceOff(note) {
         for (var i = 0; i < NUM_VOICES; i++) {
           var v = this.voices[i];
           if (v.active && v.note === note && v.gate) {
@@ -313,8 +390,86 @@
         }
       }
 
+      // ---- key level: tracks what is held and feeds the arp ----
+      noteOn(note, vel) {
+        note = clamp(note | 0, 0, 127);
+        var wasIdle = this.heldNotes.size === 0;
+        if (wasIdle) this.lfoTime = 0; // restart LFO delay
+        // HOLD: the first key pressed after letting go of everything starts
+        // a new chord rather than adding to the latched one.
+        if (wasIdle && this.P.arpHold) this.latched.clear();
+        this.heldNotes.add(note);
+        if (this.P.arpHold) this.latched.add(note);
+        this.arpDirty = true;
+        this.arpVel = vel == null ? 0.8 : vel;
+
+        if (!this.P.arpOn) {
+          this.voiceOn(note, vel);
+        } else if (wasIdle && !this.P.arpSync) {
+          // free-running arp starts immediately on the first key; a synced
+          // one stays on the external grid instead
+          this.arpStepPos = 0; this.arpLastStep = -1; this.arpIdx = 0;
+        }
+      }
+
+      noteOff(note) {
+        note = note | 0;
+        this.heldNotes.delete(note);
+        this.arpDirty = true;
+        if (!this.P.arpOn) this.voiceOff(note);
+      }
+
+      // Switching ON/HOLD mid-play must not leave voices hanging.
+      arpRetrigger() {
+        var self = this;
+        if (this.arpNote >= 0) { this.voiceOff(this.arpNote); this.arpNote = -1; }
+        if (!this.P.arpHold) this.latched.clear();
+        this.arpDirty = true;
+        if (this.P.arpOn) {
+          this.heldNotes.forEach(function (n) { self.voiceOff(n); });
+          this.arpStepPos = 0; this.arpLastStep = -1; this.arpIdx = 0;
+        } else {
+          this.heldNotes.forEach(function (n) { self.voiceOn(n, self.arpVel); });
+        }
+      }
+
+      arpSequence() {
+        if (!this.arpDirty) return this.arpSeq;
+        this.arpDirty = false;
+        var src = (this.P.arpHold && this.latched.size) ? this.latched : this.heldNotes;
+        var base = Array.from(src).sort(function (a, b) { return a - b; });
+        var octaves = clamp((this.P.arpRange | 0) + 1, 1, 3);
+        var up = [];
+        for (var o = 0; o < octaves; o++)
+          for (var i = 0; i < base.length; i++)
+            up.push(base[i] + o * 12);
+
+        var mode = this.P.arpMode | 0;
+        if (mode === 2) {                              // DOWN
+          up.reverse();
+        } else if (mode === 1) {                       // UP & DOWN
+          for (var j = up.length - 2; j >= 1; j--) up.push(up[j]);
+        }
+        this.arpSeq = up;
+        return up;
+      }
+
+      arpAdvance() {
+        if (this.arpNote >= 0) { this.voiceOff(this.arpNote); this.arpNote = -1; }
+        var seq = this.arpSequence();
+        if (!seq.length) { this.arpIdx = 0; return; }
+        if (this.arpIdx >= seq.length) this.arpIdx = 0;
+        var n = seq[this.arpIdx];
+        this.arpIdx = (this.arpIdx + 1) % seq.length;
+        this.arpNote = n;
+        this.voiceOn(n, this.arpVel);
+      }
+
       allOff() {
         this.heldNotes.clear();
+        this.latched.clear();
+        this.arpDirty = true;
+        this.arpNote = -1;
         for (var i = 0; i < NUM_VOICES; i++) {
           var v = this.voices[i];
           v.gate = false;
@@ -368,7 +523,31 @@
         var voices = this.voices;
         var chorus = this.chorus;
 
+        // --- arpeggiator step rate --------------------------------
+        var arpOn = !!P.arpOn;
+        var arpInc = 0;
+        if (arpOn) {
+          arpInc = P.arpSync
+            ? this.arpBpm() / (60 * this.arpBeats() * FS)   // steps per sample
+            : expMap(clamp(+P.arpRate || 0, 0, 1), 0.5, 20) / FS;
+        }
+
         for (var i = 0; i < n; i++) {
+          // --- arpeggiator clock -----------------------------------
+          if (arpOn) {
+            this.arpStepPos += arpInc;
+            var aStep = Math.floor(this.arpStepPos);
+            if (aStep !== this.arpLastStep) {
+              // only fire going forward; a backward jump is a clock realign
+              if (aStep > this.arpLastStep) this.arpAdvance();
+              this.arpLastStep = aStep;
+            }
+            if (this.arpNote >= 0 && this.arpStepPos - aStep >= ARP_GATE) {
+              this.voiceOff(this.arpNote);
+              this.arpNote = -1;
+            }
+          }
+
           // --- global modulators -----------------------------------
           this.lfoPhase += lfoInc;
           if (this.lfoPhase >= 1) this.lfoPhase -= 1;
@@ -514,6 +693,17 @@
 
           L[i] = this.dcL;
           R[i] = this.dcR;
+        }
+
+        // tell the UI whether an external clock is actually driving us
+        this.clockReport += n;
+        if (this.clockReport >= FS * 0.25) {
+          this.clockReport = 0;
+          if (this.clockActive && currentTime - this.clockLastTime > 0.5)
+            this.clockActive = false;   // source stopped without sending STOP
+          this.port.postMessage({
+            type: 'clock', active: this.clockActive, bpm: this.clockBpm
+          });
         }
         return true;
       }

@@ -183,6 +183,72 @@ html, body {
 }
 .oha-sl-small .oha-sl-track { height: 64px; }
 
+/* value readout under a slider label (arp RATE) */
+.oha-sl-read {
+  margin-top: 2px;
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--cream);
+  white-space: nowrap;
+}
+
+/* ---------- LED push buttons (arp ON / SYNC / HOLD) ---------- */
+.oha-ledbtn-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 40px;
+}
+.oha-ledbtn {
+  width: 34px; height: 34px;
+  margin-bottom: 6px;
+  background: linear-gradient(#3a3a41, #26262b);
+  border: 1px solid #101012;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.oha-ledbtn:hover { background: linear-gradient(#42424a, #2c2c32); }
+.oha-ledbtn.on { background: linear-gradient(#4a4a53, #32323a); }
+.oha-ledbtn.on .oha-led {
+  background: var(--led);
+  box-shadow: 0 0 8px var(--led);
+}
+
+/* ---------- BPM field ---------- */
+.oha-bpm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 54px;
+}
+.oha-bpm-input {
+  width: 50px;
+  margin-bottom: 6px;
+  background: #1d1d20;
+  color: var(--cream);
+  border: 1px solid #0f0f11;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding: 4px 2px;
+}
+.oha-bpm-input.overridden { color: var(--cream-dim); opacity: 0.55; }
+.oha-bpm-ext {
+  font-size: 0.55rem;
+  letter-spacing: 0.04em;
+  color: transparent;
+  min-height: 0.85em;
+  white-space: nowrap;
+}
+.oha-bpm-ext.on { color: var(--green); }
+
 /* ---------- segmented switches ---------- */
 .oha-seg { display: flex; flex-direction: column; align-items: center; width: 40px; }
 .oha-seg-btns { display: flex; flex-direction: column-reverse; gap: 2px; }

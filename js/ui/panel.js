@@ -27,17 +27,31 @@
     var thumb = el('div', 'oha-sl-thumb', track);
     var lab = el('div', 'oha-sl-label', wrap);
     lab.textContent = label;
+    // optional value readout under the label (used by the arp RATE slider,
+    // which shows either a note division or a free-run rate in Hz)
+    var read = opts.readout ? el('div', 'oha-sl-read', wrap) : null;
     wrap.title = label;
 
     var value = 0;
+
+    // Number of detents, or 0 for continuous. A function lets it change at
+    // runtime (RATE snaps to note divisions only while SYNC is on).
+    function stepCount() {
+      var s = typeof opts.steps === 'function' ? opts.steps() : opts.steps;
+      return s > 1 ? s : 0;
+    }
 
     function render() {
       var pct = (1 - value) * 100;
       thumb.style.top = pct + '%';
       fill.style.height = (100 - pct) + '%';
+      if (read) read.textContent = opts.readout(value);
     }
     function set(v, silent) {
-      value = Math.max(0, Math.min(1, v));
+      v = Math.max(0, Math.min(1, v));
+      var sc = stepCount();
+      if (sc) v = Math.round(v * (sc - 1)) / (sc - 1);
+      value = v;
       render();
       if (!silent) engine.setParam(id, value);
     }
@@ -70,8 +84,74 @@
       set(value - Math.sign(ev.deltaY) * 0.02);
     }, { passive: false });
 
-    controls[id] = { set: function (v) { set(v, true); } };
+    controls[id] = {
+      set: function (v) { set(v, true); },
+      refresh: function () { set(value); }   // re-snap / redraw the readout
+    };
     set(engine.patch[id] != null ? engine.patch[id] : 0, true);
+    return wrap;
+  }
+
+  // ---------------------------------------------------------------
+  // Latching button with an LED (arp ON / SYNC / HOLD)
+  // ---------------------------------------------------------------
+  function ledButton(engine, id, label, onChange) {
+    var wrap = el('div', 'oha-ledbtn-wrap');
+    var b = el('button', 'oha-ledbtn', wrap);
+    b.type = 'button';
+    b.appendChild(el('span', 'oha-led'));
+    var lab = el('div', 'oha-sl-label', wrap);
+    lab.textContent = label;
+
+    var value = 0;
+    function set(v, silent) {
+      value = v ? 1 : 0;
+      b.classList.toggle('on', !!value);
+      if (!silent) engine.setParam(id, value);
+      if (onChange) onChange(value);
+    }
+    b.addEventListener('click', function () { set(value ? 0 : 1); });
+    controls[id] = { set: function (v) { set(v, true); } };
+    set(engine.patch[id] ? 1 : 0, true);
+    return wrap;
+  }
+
+  // ---------------------------------------------------------------
+  // Tempo used when no external clock is running. When one is, this shows
+  // the incoming tempo instead so it is obvious what the arp is following.
+  // ---------------------------------------------------------------
+  function bpmField(engine) {
+    var wrap = el('div', 'oha-bpm');
+    var input = el('input', 'oha-bpm-input', wrap);
+    input.type = 'number';
+    input.min = 40; input.max = 300; input.step = 1;
+    input.spellcheck = false;
+    var lab = el('div', 'oha-sl-label', wrap);
+    lab.textContent = 'BPM';
+    var ext = el('div', 'oha-bpm-ext', wrap);
+
+    function push() {
+      var v = Math.max(40, Math.min(300, Math.round(+input.value || 120)));
+      input.value = v;
+      engine.setParam('arpBpm', v);
+    }
+    input.addEventListener('change', push);
+    input.addEventListener('blur', push);
+
+    controls.arpBpm = {
+      set: function (v) { input.value = Math.round(+v || 120); }
+    };
+    controls.arpBpm.set(engine.patch.arpBpm);
+
+    engine.on('clock', function (active, bpm) {
+      var live = active && bpm > 0;
+      ext.textContent = live ? 'EXT ' + bpm.toFixed(1) : '';
+      ext.classList.toggle('on', live);
+      input.classList.toggle('overridden', live);
+      input.title = live
+        ? 'Following an external MIDI clock at ' + bpm.toFixed(1) + ' BPM'
+        : 'Tempo used when no external MIDI clock is running';
+    });
     return wrap;
   }
 
@@ -207,6 +287,26 @@
   // Panel assembly
   // ---------------------------------------------------------------
   Oha.buildPanel = function (engine, root) {
+    // arpeggio sits at the far left, as on the hardware
+    var arp = section(root, 'ARPEGGIO', '#4f9ed9');
+    arp.appendChild(ledButton(engine, 'arpOn', 'ON'));
+    arp.appendChild(seg(engine, 'arpMode', 'MODE', ['UP', 'UP&DN', 'DOWN'], { vertical: true }));
+    arp.appendChild(seg(engine, 'arpRange', 'RANGE', ['1', '2', '3'], { vertical: true }));
+    arp.appendChild(vslider(engine, 'arpRate', 'RATE', {
+      // detented on note divisions while synced, continuous Hz otherwise
+      steps: function () { return engine.patch.arpSync ? Oha.ARP_DIVISIONS.length : 0; },
+      readout: function (v) {
+        return engine.patch.arpSync
+          ? Oha.ARP_LABELS[Oha.arpDivIndex(v)]
+          : (0.5 * Math.pow(40, v)).toFixed(1) + ' Hz';
+      }
+    }));
+    arp.appendChild(ledButton(engine, 'arpSync', 'SYNC', function () {
+      if (controls.arpRate) controls.arpRate.refresh();
+    }));
+    arp.appendChild(ledButton(engine, 'arpHold', 'HOLD'));
+    arp.appendChild(bpmField(engine));
+
     // left block: volume
     var left = section(root, 'MAIN', '#c8413b');
     left.appendChild(vslider(engine, 'volume', 'VOLUME'));

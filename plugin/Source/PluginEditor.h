@@ -86,6 +86,57 @@ private:
     bool held = false;
 };
 
+// Latching square button with an LED (arp ON / SYNC / HOLD).
+class LedButton : public juce::Component {
+public:
+    explicit LedButton(juce::RangedAudioParameter& p);
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+
+private:
+    juce::ParameterAttachment attachment;
+    bool on = false;
+};
+
+// Arp RATE: continuous Hz normally, detented on note divisions when SYNC is
+// on, with a readout underneath showing which.
+class ArpRate : public juce::Component {
+public:
+    explicit ArpRate(OhASynthProcessor&);
+    void resized() override;
+
+private:
+    void refresh();
+
+    juce::Slider slider;
+    juce::Label readout;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
+    // Watch the parameters directly: the values arrive with these callbacks,
+    // so we never read a stale copy from the APVTS cache or the slider.
+    std::unique_ptr<juce::ParameterAttachment> rateWatch, syncWatch;
+    float rateValue = 0.545f;
+    bool synced = false;
+};
+
+// Tempo used when nothing external is running; shows the external tempo
+// (host or MIDI clock) when something is.
+class BpmField : public juce::Component,
+                 private juce::Timer {
+public:
+    explicit BpmField(OhASynthProcessor&);
+    void resized() override;
+
+private:
+    void timerCallback() override;
+    void commit();
+
+    OhASynthProcessor& proc;
+    juce::RangedAudioParameter* param = nullptr;
+    juce::Label value, ext;
+    std::unique_ptr<juce::ParameterAttachment> att;
+    bool editing = false;
+};
+
 // The two hardware chorus buttons with LEDs: I, II, both = I+II.
 // Bound to the 4-value chorus choice param (bit 0 = I, bit 1 = II).
 class ChorusButtons : public juce::Component {

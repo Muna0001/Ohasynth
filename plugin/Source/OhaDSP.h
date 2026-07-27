@@ -43,6 +43,20 @@ inline float polyblep(float t, float dt) {
 constexpr float kVoiceFcOff[kNumVoices]  = { 0.016f, -0.021f, 0.009f, -0.014f, 0.022f, -0.008f };
 constexpr float kVoiceVcaOff[kNumVoices] = { 1.0f, 0.987f, 1.011f, 0.992f, 1.007f, 0.996f };
 
+// ---------------------------------------------------------------------
+// Arpeggiator timing
+// ---------------------------------------------------------------------
+// Note divisions in quarter-note beats per step, ordered slow -> fast:
+// whole note at the bottom of the RATE slider up to 1/64 at the top, with
+// a dotted stop before each plain value. Keep in step with ARP_DIVISIONS
+// in js/engine/worklet.js and Oha.ARP_DIVISIONS in js/engine/engine.js.
+constexpr double kArpDivisions[12] = {
+    4.0, 3.0, 2.0, 1.5, 1.0, 0.75, 0.5, 0.375, 0.25, 0.1875, 0.125, 0.0625
+};
+constexpr int kNumArpDivisions = 12;
+constexpr double kArpGate = 0.5;   // fraction of each step the note sounds for
+constexpr int kMidiPpqn = 24;      // MIDI beat-clock ticks per quarter note
+
 struct Voice {
     bool active = false, gate = false;
     int note = 60;
@@ -159,6 +173,14 @@ struct Params {
     int   chorus = 0;                   // 0=off 1=I 2=II 3=I+II
     float bendDco = 0.1667f, bendVcf = 0.0f;
     float velSens = 0.30f, volume = 0.75f;
+    // ----- arpeggiator -----
+    int   arpOn = 0;
+    int   arpMode = 0;                  // 0=UP 1=UP&DOWN 2=DOWN
+    int   arpRange = 0;                 // 0=1oct 1=2oct 2=3oct
+    float arpRate = 0.545f;             // snaps to a division when synced
+    int   arpSync = 0;
+    int   arpHold = 0;
+    float arpBpm = 120.0f;              // in BPM, not normalized
 };
 
 // ---------------------------------------------------------------------
@@ -197,7 +219,12 @@ public:
 
     // Apply a full set of raw parameter values (called once per block).
     void setParams(const Params& p, bool snap = false) {
+        const Params prev = params;
         params = p;
+        // arp: rebuild the sequence on mode/range, and stop hanging voices
+        // when it is switched in or out mid-play
+        if (p.arpMode != prev.arpMode || p.arpRange != prev.arpRange) arpDirty = true;
+        if (p.arpOn != prev.arpOn || p.arpHold != prev.arpHold) arpRetrigger();
         smPw.t = p.dcoPw;        smSaw.t = (float) p.dcoSaw;
         smPulse.t = (float) p.dcoPulse;
         smSub.t = p.dcoSub;      smNoise.t = p.dcoNoise;
@@ -226,11 +253,8 @@ public:
         }
     }
 
-    void noteOn(int note, float vel) {
-        note = std::clamp(note, 0, 127);
-        if (heldCount == 0) lfoTime = 0; // restart LFO delay
-        if (!held[note]) { held[note] = true; ++heldCount; }
-
+    // ---- voice level: no key tracking, so the arp can use these too ----
+    void voiceOn(int note, float vel) {
         Voice& v = findVoice(note);
         v.note = note;
         float vn = clampf(vel <= 0 ? 0.8f : vel, 0.01f, 1.0f);
@@ -241,11 +265,82 @@ public:
         v.active = true;
     }
 
+    void voiceOff(int note) {
+        for (auto& v : voices)
+            if (v.active && v.note == note && v.gate) {
+                v.gate = false;
+                if (v.stage != 0) v.stage = 3;
+            }
+    }
+
+    // ---- key level: tracks what is held and feeds the arp ----
+    void noteOn(int note, float vel) {
+        note = std::clamp(note, 0, 127);
+        const bool wasIdle = heldCount == 0;
+        if (wasIdle) lfoTime = 0; // restart LFO delay
+        // HOLD: the first key pressed after letting go of everything starts
+        // a new chord rather than adding to the latched one.
+        if (wasIdle && params.arpHold) clearLatch();
+        if (!held[note]) { held[note] = true; ++heldCount; }
+        if (params.arpHold && !latched[note]) { latched[note] = true; ++latchedCount; }
+        arpDirty = true;
+        arpVel = vel <= 0 ? 0.8f : vel;
+
+        if (!params.arpOn) {
+            voiceOn(note, vel);
+        } else if (wasIdle && !params.arpSync) {
+            // a free-running arp starts immediately on the first key; a
+            // synced one stays on the external grid instead
+            arpStepPos = 0; arpLastStep = -1; arpIdx = 0;
+        }
+    }
+
     void noteOff(int note) {
         note = std::clamp(note, 0, 127);
         if (sustainOn) { sustained[note] = held[note]; if (held[note]) { held[note] = false; --heldCount; } return; }
         releaseNote(note);
     }
+
+    // ---- arpeggiator ----
+    void clockStart() {
+        clockActive = true;
+        clockTicks = 0;
+        clockLastSample = -1;
+        arpStepPos = 0; arpLastStep = -1; arpIdx = 0;
+    }
+    void clockStop() { clockActive = false; }
+
+    // One MIDI beat-clock tick (0xF8). Timed against the render clock, so
+    // it stays sample-accurate rather than relying on wall time.
+    void clockTick() {
+        if (clockLastSample >= 0) {
+            const double dt = (double) (sampleCounter - clockLastSample) / fs;
+            if (dt > 0.0004 && dt < 0.5) {
+                const double bpm = 60.0 / (dt * kMidiPpqn);
+                clockBpm = clockBpm > 0 ? clockBpm * 0.88 + bpm * 0.12 : bpm;
+            }
+        }
+        clockLastSample = sampleCounter;
+        if (!clockActive) { clockActive = true; clockTicks = 0; }
+        ++clockTicks;
+        // realign once per beat so we can never drift away from the source
+        if (clockTicks % kMidiPpqn == 0) {
+            const double target = (double) (clockTicks / kMidiPpqn) / arpBeats();
+            if (std::fabs(target - arpStepPos) < 4.0) arpStepPos = target;
+        }
+    }
+
+    // Host transport, set once per block by the plugin. Pass ppq < 0 when
+    // the host gives no musical position. The standalone never calls this,
+    // so it falls back to MIDI clock or the manual BPM.
+    void setHostTransport(double bpm, double ppq, bool playing) {
+        hostBpm = bpm > 0 ? bpm : 0.0;
+        hostPpq = ppq;
+        hostPlaying = playing;
+    }
+
+    bool  clockRunning() const { return clockActive || (hostPlaying && hostBpm > 0); }
+    float clockTempo()   const { return (float) effectiveBpm(); }
 
     void setSustain(bool on) {
         sustainOn = on;
@@ -265,6 +360,9 @@ public:
         for (auto& h : held) h = false;
         for (auto& s : sustained) s = false;
         heldCount = 0;
+        clearLatch();
+        arpDirty = true;
+        arpNote = -1;
         for (auto& v : voices) {
             v.gate = false;
             if (v.active) v.stage = 3;
@@ -274,6 +372,9 @@ public:
     void reset() {
         for (auto& v : voices) { v = Voice(); }
         allNotesOff();
+        arpStepPos = 0; arpLastStep = -1; arpIdx = 0; arpNote = -1;
+        clockActive = false; clockTicks = 0; clockBpm = 0; clockLastSample = -1;
+        hostBpm = 0; hostPpq = -1; hostPlaying = false;
     }
 
     // Render n samples of stereo output (replaces buffer contents).
@@ -287,7 +388,37 @@ public:
         const bool holding = heldCount > 0;
         const float invFs = (float) (1.0 / fs);
 
+        // --- arpeggiator step rate --------------------------------
+        const bool arpOn = params.arpOn != 0;
+        double arpInc = 0.0;
+        if (arpOn) {
+            if (params.arpSync) {
+                arpInc = effectiveBpm() / (60.0 * arpBeats() * fs);
+                // a host with a musical position wins: lock straight to its
+                // grid so the pattern lands on the beat
+                if (hostPlaying && hostPpq >= 0.0)
+                    arpStepPos = hostPpq / arpBeats();
+            } else {
+                arpInc = expMap(clampf(params.arpRate, 0.0f, 1.0f), 0.5f, 20.0f) / fs;
+            }
+        }
+
         for (int i = 0; i < n; ++i) {
+            // --- arpeggiator clock -----------------------------------
+            if (arpOn) {
+                arpStepPos += arpInc;
+                const int aStep = (int) std::floor(arpStepPos);
+                if (aStep != arpLastStep) {
+                    // only fire going forward; a backward jump is a realign
+                    if (aStep > arpLastStep) arpAdvance();
+                    arpLastStep = aStep;
+                }
+                if (arpNote >= 0 && arpStepPos - (double) aStep >= kArpGate) {
+                    voiceOff(arpNote);
+                    arpNote = -1;
+                }
+            }
+
             // --- global modulators -----------------------------------
             lfoPhase += lfoInc;
             if (lfoPhase >= 1.0f) lfoPhase -= 1.0f;
@@ -428,6 +559,9 @@ public:
             L[i] = dcL;
             R[i] = dcR;
         }
+        // processBlock splits at MIDI events, so advancing this per render
+        // call keeps clockTick()'s timing exact at each event boundary
+        sampleCounter += n;
     }
 
 private:
@@ -436,11 +570,77 @@ private:
 
     void releaseNote(int note) {
         if (held[note]) { held[note] = false; --heldCount; }
-        for (auto& v : voices)
-            if (v.active && v.note == note && v.gate) {
-                v.gate = false;
-                if (v.stage != 0) v.stage = 3;
-            }
+        arpDirty = true;
+        // with the arp running, the sequence is the note source; the sounding
+        // note is released by the gate, not by the key
+        if (!params.arpOn) voiceOff(note);
+    }
+
+    // ---- arpeggiator helpers ----
+    void clearLatch() {
+        for (auto& l : latched) l = false;
+        latchedCount = 0;
+    }
+
+    double arpBeats() const {
+        const int idx = std::clamp((int) std::lround(clampf(params.arpRate, 0.0f, 1.0f)
+                                                    * (kNumArpDivisions - 1)),
+                                   0, kNumArpDivisions - 1);
+        return kArpDivisions[idx];
+    }
+
+    double effectiveBpm() const {
+        if (hostPlaying && hostBpm > 0) return hostBpm;   // DAW wins
+        if (clockActive && clockBpm > 0) return clockBpm;  // then MIDI clock
+        return std::clamp((double) params.arpBpm, 20.0, 400.0);
+    }
+
+    void rebuildArpSeq() {
+        // scanning 0..127 yields the notes already in ascending order
+        const bool useLatch = params.arpHold && latchedCount > 0;
+        int base[kMaxArpBase];
+        int nBase = 0;
+        for (int n = 0; n < 128 && nBase < kMaxArpBase; ++n)
+            if (useLatch ? latched[n] : held[n]) base[nBase++] = n;
+
+        const int octaves = std::clamp(params.arpRange + 1, 1, 3);
+        int len = 0;
+        for (int o = 0; o < octaves; ++o)
+            for (int i = 0; i < nBase && len < kMaxArpSeq; ++i)
+                arpSeq[len++] = base[i] + o * 12;
+
+        if (params.arpMode == 2) {                       // DOWN
+            for (int i = 0; i < len / 2; ++i) std::swap(arpSeq[i], arpSeq[len - 1 - i]);
+        } else if (params.arpMode == 1) {                // UP & DOWN
+            const int up = len;
+            for (int j = up - 2; j >= 1 && len < kMaxArpSeq; --j) arpSeq[len++] = arpSeq[j];
+        }
+        arpSeqLen = len;
+        arpDirty = false;
+    }
+
+    void arpAdvance() {
+        if (arpNote >= 0) { voiceOff(arpNote); arpNote = -1; }
+        if (arpDirty) rebuildArpSeq();
+        if (arpSeqLen == 0) { arpIdx = 0; return; }
+        if (arpIdx >= arpSeqLen) arpIdx = 0;
+        const int n = arpSeq[arpIdx];
+        arpIdx = (arpIdx + 1) % arpSeqLen;
+        arpNote = n;
+        voiceOn(n, arpVel);
+    }
+
+    // Switching ON/HOLD mid-play must not leave voices hanging.
+    void arpRetrigger() {
+        if (arpNote >= 0) { voiceOff(arpNote); arpNote = -1; }
+        if (!params.arpHold) clearLatch();
+        arpDirty = true;
+        if (params.arpOn) {
+            for (int n = 0; n < 128; ++n) if (held[n]) voiceOff(n);
+            arpStepPos = 0; arpLastStep = -1; arpIdx = 0;
+        } else {
+            for (int n = 0; n < 128; ++n) if (held[n]) voiceOn(n, arpVel);
+        }
     }
 
     // Voice allocation: reuse same note, else a free voice, else the
@@ -486,6 +686,29 @@ private:
     float rangeMult = 1, bendSemis = 2;
     float lfoPhase = 0, lfoTime = 100;
     bool lfoTrigHeld = false;
+
+    // ----- arpeggiator -----
+    static constexpr int kMaxArpBase = 32;
+    static constexpr int kMaxArpSeq = kMaxArpBase * 3 * 2;  // octaves x up&down
+    bool latched[128] = {};
+    int latchedCount = 0;
+    int arpSeq[kMaxArpSeq] = {};
+    int arpSeqLen = 0;
+    bool arpDirty = true;
+    double arpStepPos = 0;      // musical position, counted in steps
+    int arpLastStep = -1;
+    int arpIdx = 0;
+    int arpNote = -1;           // note the arp is currently sounding
+    float arpVel = 0.8f;
+    // external MIDI beat clock
+    bool clockActive = false;
+    int64_t clockTicks = 0;
+    double clockBpm = 0;
+    int64_t clockLastSample = -1;
+    int64_t sampleCounter = 0;
+    // host transport (plugin only)
+    double hostBpm = 0, hostPpq = -1;
+    bool hostPlaying = false;
 
     Chorus chorus;
     float dcA = 0, dcL = 0, dcLx = 0, dcR = 0, dcRx = 0;

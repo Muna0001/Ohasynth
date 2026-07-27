@@ -184,6 +184,137 @@ void LfoTrigButton::paint(juce::Graphics& g) {
 }
 
 // ---------------------------------------------------------------------
+LedButton::LedButton(juce::RangedAudioParameter& p)
+    : attachment(p, [this](float v) { on = v >= 0.5f; repaint(); }, nullptr) {
+    attachment.sendInitialUpdate();
+}
+
+void LedButton::mouseDown(const juce::MouseEvent&) {
+    attachment.setValueAsCompleteGesture(on ? 0.0f : 1.0f);
+}
+
+void LedButton::paint(juce::Graphics& g) {
+    auto r = getLocalBounds().toFloat().withSizeKeepingCentre(34.0f, 34.0f);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff3a3a41), r.getX(), r.getY(),
+                                           juce::Colour(0xff26262b), r.getX(), r.getBottom(),
+                                           false));
+    g.fillRoundedRectangle(r, 4.0f);
+    g.setColour(juce::Colour(0xff101012));
+    g.drawRoundedRectangle(r.reduced(0.5f), 4.0f, 1.0f);
+
+    auto led = juce::Rectangle<float>(0, 0, 8.0f, 8.0f).withCentre(r.getCentre());
+    if (on) {
+        g.setColour(col::led.withAlpha(0.30f));
+        g.fillEllipse(led.expanded(4.0f));
+        g.setColour(col::led);
+        g.fillEllipse(led);
+    } else {
+        g.setColour(juce::Colour(0xff4a1410));
+        g.fillEllipse(led);
+        g.setColour(juce::Colours::black.withAlpha(0.5f));
+        g.drawEllipse(led, 1.0f);
+    }
+}
+
+// ---------------------------------------------------------------------
+ArpRate::ArpRate(OhASynthProcessor& p) {
+    slider.setSliderStyle(juce::Slider::LinearVertical);
+    slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    addAndMakeVisible(slider);
+    att = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        p.apvts, "arpRate", slider);
+
+    readout.setJustificationType(juce::Justification::centred);
+    readout.setColour(juce::Label::textColourId, col::cream);
+    readout.setFont(juce::FontOptions(9.5f));
+    addAndMakeVisible(readout);
+
+    if (auto* rp = p.apvts.getParameter("arpRate"))
+        rateWatch = std::make_unique<juce::ParameterAttachment>(
+            *rp, [this](float v) { rateValue = v; refresh(); }, nullptr);
+    if (auto* sp = p.apvts.getParameter("arpSync"))
+        syncWatch = std::make_unique<juce::ParameterAttachment>(
+            *sp, [this](float v) { synced = v >= 0.5f; refresh(); }, nullptr);
+    if (rateWatch) rateWatch->sendInitialUpdate();
+    if (syncWatch) syncWatch->sendInitialUpdate();
+}
+
+void ArpRate::refresh() {
+    const double v = juce::jlimit(0.0, 1.0, (double) rateValue);
+    if (synced) {
+        // detent the slider on the division table
+        slider.setRange(0.0, 1.0, 1.0 / (oha::kNumArpDivisions - 1));
+        const int idx = juce::jlimit(0, oha::kNumArpDivisions - 1,
+                                     (int) std::lround(v * (oha::kNumArpDivisions - 1)));
+        static const char* names[] = { "1/1", "1/2.", "1/2", "1/4.", "1/4", "1/8.",
+                                       "1/8", "1/16.", "1/16", "1/32.", "1/32", "1/64" };
+        readout.setText(names[idx], juce::dontSendNotification);
+    } else {
+        slider.setRange(0.0, 1.0, 0.0);
+        readout.setText(juce::String(0.5 * std::pow(40.0, v), 1) + " Hz",
+                        juce::dontSendNotification);
+    }
+}
+
+void ArpRate::resized() {
+    auto r = getLocalBounds();
+    readout.setBounds(r.removeFromBottom(13));
+    slider.setBounds(r);
+}
+
+// ---------------------------------------------------------------------
+BpmField::BpmField(OhASynthProcessor& p) : proc(p) {
+    value.setJustificationType(juce::Justification::centred);
+    value.setEditable(true);
+    value.setFont(juce::FontOptions(11.0f));
+    value.setColour(juce::Label::textColourId, col::cream);
+    value.setColour(juce::Label::backgroundColourId, juce::Colour(0xff1d1d20));
+    value.setColour(juce::Label::outlineColourId, juce::Colour(0xff0f0f11));
+    value.setColour(juce::Label::backgroundWhenEditingColourId, juce::Colour(0xff1d1d20));
+    value.setColour(juce::Label::textWhenEditingColourId, col::cream);
+    addAndMakeVisible(value);
+
+    if ((param = p.apvts.getParameter("arpBpm")) != nullptr) {
+        att = std::make_unique<juce::ParameterAttachment>(*param, [this](float v) {
+            if (!editing)
+                value.setText(juce::String((int) std::lround(v)), juce::dontSendNotification);
+        }, nullptr);
+        att->sendInitialUpdate();
+    }
+    value.onEditorShow = [this] { editing = true; };
+    value.onEditorHide = [this] { editing = false; };
+    value.onTextChange = [this] { commit(); };
+
+    ext.setJustificationType(juce::Justification::centred);
+    ext.setFont(juce::FontOptions(8.5f));
+    ext.setColour(juce::Label::textColourId, col::green);
+    addAndMakeVisible(ext);
+    startTimerHz(8);
+}
+
+void BpmField::commit() {
+    if (att == nullptr) return;
+    const float v = juce::jlimit(40.0f, 300.0f, value.getText().getFloatValue());
+    att->setValueAsCompleteGesture(v);
+    value.setText(juce::String((int) std::lround(v)), juce::dontSendNotification);
+}
+
+void BpmField::timerCallback() {
+    // show what the arp is really following, so it is obvious when the
+    // manual tempo is being ignored
+    const bool live = proc.clockRunning.load();
+    ext.setText(live ? "EXT " + juce::String(proc.clockTempo.load(), 1) : juce::String(),
+                juce::dontSendNotification);
+    value.setAlpha(live ? 0.5f : 1.0f);
+}
+
+void BpmField::resized() {
+    auto r = getLocalBounds();
+    ext.setBounds(r.removeFromBottom(12));
+    value.setBounds(r.removeFromBottom(22).reduced(6, 0));
+}
+
+// ---------------------------------------------------------------------
 ChorusButtons::ChorusButtons(juce::RangedAudioParameter& p)
     : attachment(p, [this](float v) { value = (int) std::lround(v); repaint(); }, nullptr) {
     attachment.sendInitialUpdate();
@@ -370,6 +501,23 @@ OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
     using namespace oha::metrics;
 
     const int SL = sliderW, SEG = segW;
+
+    // arpeggio sits at the far left, as on the hardware
+    auto* arp = sections.emplace_back(std::make_unique<Section>("ARPEGGIO", col::blue)).get();
+    {
+        auto param = [this](const char* id) -> juce::RangedAudioParameter& {
+            auto* found = proc.apvts.getParameter(id);
+            jassert(found != nullptr);
+            return *found;
+        };
+        arp->add(std::make_unique<oha::LedButton>(param("arpOn")), "ON", 38);
+        arp->add(makeSeg("arpMode", { "UP", "UP&DN", "DOWN" }), "MODE", SEG + 8);
+        arp->add(makeSeg("arpRange", { "1", "2", "3" }), "RANGE", SEG);
+        arp->add(std::make_unique<oha::ArpRate>(proc), "RATE", SL);
+        arp->add(std::make_unique<oha::LedButton>(param("arpSync")), "SYNC", 38);
+        arp->add(std::make_unique<oha::LedButton>(param("arpHold")), "HOLD", 38);
+        arp->add(std::make_unique<oha::BpmField>(proc), "BPM", 72);
+    }
 
     auto* main = sections.emplace_back(std::make_unique<Section>("MAIN", col::red)).get();
     main->add(makeSlider("volume"), "VOLUME", SL);

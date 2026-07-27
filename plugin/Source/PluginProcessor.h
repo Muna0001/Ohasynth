@@ -42,6 +42,11 @@ public:
     std::atomic<float> uiBend { 0.0f };
     std::atomic<bool>  uiLfoTrig { false };
 
+    // Published by processBlock so the editor can show what the arp is
+    // actually following (host transport or an external MIDI clock).
+    std::atomic<bool>  clockRunning { false };
+    std::atomic<float> clockTempo { 120.0f };
+
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void syncParams();
@@ -53,7 +58,8 @@ private:
             * dcoPwmMode, * dcoSaw, * dcoPulse, * dcoSub, * dcoNoise, * hpf,
             * vcfFreq, * vcfRes, * vcfPol, * vcfEnv, * vcfLfo, * vcfKey,
             * vcaMode, * vcaLevel, * envA, * envD, * envS, * envR, * chorus,
-            * bendDco, * bendVcf, * velSens, * volume;
+            * bendDco, * bendVcf, * velSens, * volume,
+            * arpOn, * arpMode, * arpRange, * arpRate, * arpSync, * arpHold, * arpBpm;
     } raw {};
 
     oha::Engine engine;

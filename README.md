@@ -54,7 +54,8 @@ octave with `Z`/`X`), or a MIDI keyboard.
 
 Web MIDI needs Chrome, Edge, or Firefox — **Safari does not support it**. The
 MIDI status in the header names the specific problem when a keyboard isn't
-found, and clicking it re-scans.
+found, and clicking it re-scans. Incoming MIDI beat clock is used to sync the
+arpeggiator (see below).
 
 Files:
 
@@ -126,9 +127,18 @@ Developer ID.
 
 `js/engine/worklet.js` (JavaScript) and `plugin/Source/OhaDSP.h` (C++) are
 deliberate line-for-line equivalents: same polyBLEP oscillators, same ZDF
-ladder, same chorus constants, same smoothing time constants. **A change to
-the sound must be made in both files**, or the web and native versions drift
-apart. They are structured identically to make that mechanical.
+ladder, same chorus constants, same smoothing time constants, same
+arpeggiator. **A change to the sound must be made in both files**, or the web
+and native versions drift apart. They are structured identically to make that
+mechanical.
+
+The arp division table appears in three places that must agree:
+`ARP_DIVISIONS` (worklet.js), `Oha.ARP_DIVISIONS`/`Oha.ARP_LABELS`
+(engine.js, for the UI), and `kArpDivisions` (OhaDSP.h).
+
+The one intentional difference: only the plugin reads a host transport
+(`setHostTransport`). The web build has no host, so it syncs from MIDI clock
+or the manual BPM.
 
 Likewise `js/engine/presets.js` and `plugin/Source/Presets.h` hold the same 8
 factory patches, and the parameter schema in `js/engine/engine.js`
@@ -157,6 +167,43 @@ tolerances between the six voice chips; the DCO pitch itself never drifts.
 two taps modulated in antiphase by a triangle LFO, wet path band-limited to
 ~9 kHz like the MN3009 chips. Two latching buttons as on the panel:
 I (0.513 Hz, lush), II (0.863 Hz), both = I+II (9.75 Hz fast shallow warble).
+
+## Arpeggiator
+
+Sits at the far left of the panel, ahead of the signal-flow sections.
+
+- **ON** — while on, held keys feed the arp instead of sounding together.
+- **MODE** — UP, UP & DOWN, DOWN. Up & down does not repeat the endpoints,
+  so a three-note chord cycles `1 2 3 2`.
+- **RANGE** — 1, 2, or 3 octaves; the chord repeats transposed up.
+- **RATE** — free-running 0.5–20 Hz, or a note division when SYNC is on.
+- **SYNC** — lock to an external tempo (below).
+- **HOLD** — latch: the pattern keeps cycling after you let go, and the first
+  key pressed after releasing everything starts a new chord.
+- **BPM** — the tempo used when nothing external is running. When something
+  is, this dims and `EXT <tempo>` appears beside it.
+
+Each step sounds for half its length, so the pattern is detached rather than
+legato. Notes are triggered through the same 6-voice allocator as the
+keyboard, so a fast arp with a long release still steals voices normally.
+
+**Divisions.** The RATE slider snaps to 12 stops when synced, slowest at the
+bottom: `1/1, 1/2., 1/2, 1/4., 1/4, 1/8., 1/8, 1/16., 1/16, 1/32., 1/32,
+1/64` — standard values each preceded by its dotted variant.
+
+**Where the tempo comes from**, in priority order:
+
+1. **Host transport** (plugin only) — the DAW's tempo *and* playhead, so the
+   pattern lands on the beat rather than just running at the right speed.
+2. **MIDI beat clock** — 24-ppqn clock from another app or device, which is
+   how the standalone app and the web app sync. START/CONTINUE resets the
+   pattern to the top; the tempo is measured from tick spacing and realigned
+   every beat so it cannot drift. If clock stops arriving, it falls back
+   automatically after ~0.5 s.
+3. **The BPM field** — manual tempo, used when neither of the above applies.
+
+A synced arp deliberately does *not* restart when you press a key; it stays
+on the external grid. A free-running one starts immediately on the first key.
 
 ## What to listen for, stage by stage
 

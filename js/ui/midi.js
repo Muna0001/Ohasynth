@@ -66,7 +66,22 @@
 
     function onMessage(ev) {
       var d = ev.data;
-      if (!d || d.length < 2) return;
+      if (!d || !d.length) return;
+
+      // System realtime messages are single bytes and must be handled
+      // before the channel-message mask below (0xF8 & 0xF0 == 0xF0).
+      // These arrive 24x per beat, so do no extra work here.
+      if (d[0] >= 0xf8) {
+        switch (d[0]) {
+          case 0xf8: engine.clockTick(); break;   // clock
+          case 0xfa: engine.clockStart(); break;  // start
+          case 0xfb: engine.clockStart(); break;  // continue
+          case 0xfc: engine.clockStop(); break;   // stop
+        }
+        return;
+      }
+
+      if (d.length < 2) return;
       var status = d[0] & 0xf0;
       // Try to start audio. MIDI input is not a user gesture, so this can
       // fail under autoplay policy — main.js shows a "click to enable
