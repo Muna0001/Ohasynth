@@ -116,6 +116,13 @@ void OhASynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     keyboardState.processNextMidiBuffer(midi, 0, n, true);
     syncParams();
 
+    // on-screen bender / LFO TRIG (only push on change so incoming MIDI
+    // pitch bend isn't overwritten every block)
+    const float ub = uiBend.load();
+    if (! juce::exactlyEqual(ub, lastUiBend)) { lastUiBend = ub; engine.pitchBend(ub); }
+    const bool ut = uiLfoTrig.load();
+    if (ut != lastUiLfoTrig) { lastUiLfoTrig = ut; engine.lfoTrig(ut); }
+
     float* L = buffer.getWritePointer(0);
     float* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : L;
 

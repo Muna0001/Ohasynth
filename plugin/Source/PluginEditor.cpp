@@ -2,6 +2,20 @@
 
 namespace oha {
 
+using namespace metrics;
+
+// ---------------------------------------------------------------------
+void drawTracked(juce::Graphics& g, const juce::String& text,
+                 juce::Point<float> origin, float tracking) {
+    const auto f = g.getCurrentFont();
+    float x = origin.x;
+    for (int i = 0; i < text.length(); ++i) {
+        const auto ch = text.substring(i, i + 1);
+        g.drawSingleLineText(ch, juce::roundToInt(x), juce::roundToInt(origin.y));
+        x += juce::GlyphArrangement::getStringWidth(f, ch) + tracking;
+    }
+}
+
 // ---------------------------------------------------------------------
 OhaLookAndFeel::OhaLookAndFeel() {
     setColour(juce::ResizableWindow::backgroundColourId, col::panel);
@@ -40,11 +54,12 @@ void OhaLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
                                            false));
     g.fillRoundedRectangle(track, 3.0f);
 
-    // tick marks (same density as the web app's track)
+    // tick marks, ~13px apart as on the web track
     g.setColour(juce::Colour(0xff3c3c42));
-    const int nTicks = juce::jmax(8, h / 16);
+    const int nTicks = juce::jmax(4, juce::roundToInt((track.getHeight() - 12.0f) / 13.0f) + 1);
     for (int i = 0; i < nTicks; ++i) {
-        float ty = track.getY() + 6.0f + (track.getHeight() - 12.0f) * (float) i / (float) (nTicks - 1);
+        const float ty = track.getY() + 6.0f
+            + (track.getHeight() - 12.0f) * (float) i / (float) (nTicks - 1);
         g.fillRect(track.getX() + 2.0f, ty, tw - 4.0f, 1.0f);
     }
 
@@ -62,7 +77,8 @@ void OhaLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
     g.fillRoundedRectangle(cx - 2.0f, fillTop, 4.0f, track.getBottom() - 4.0f - fillTop, 2.0f);
 
     // fader cap with drop shadow and cream indicator line
-    juce::Rectangle<float> cap(cx - 12.0f, sliderPos - 7.0f, 24.0f, 14.0f);
+    const float capW = juce::jmin(24.0f, tw);
+    juce::Rectangle<float> cap(cx - capW * 0.5f, sliderPos - 7.0f, capW, 14.0f);
     g.setColour(juce::Colours::black.withAlpha(0.45f));
     g.fillRoundedRectangle(cap.translated(0, 2.0f), 2.0f);
 
@@ -98,6 +114,76 @@ void OhaLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& b,
 }
 
 // ---------------------------------------------------------------------
+BenderLever::BenderLever(OhASynthProcessor& p) : proc(p) {
+    setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
+}
+
+void BenderLever::push(float v) {
+    value = juce::jlimit(-1.0f, 1.0f, v);
+    proc.uiBend.store(value);
+    repaint();
+}
+
+void BenderLever::setFromMouse(const juce::MouseEvent& e) {
+    push((e.position.x / (float) juce::jmax(1, getWidth())) * 2.0f - 1.0f);
+}
+
+void BenderLever::mouseDown(const juce::MouseEvent& e) { setFromMouse(e); }
+void BenderLever::mouseDrag(const juce::MouseEvent& e) { setFromMouse(e); }
+void BenderLever::mouseUp(const juce::MouseEvent&)     { push(0.0f); } // springs back
+
+void BenderLever::paint(juce::Graphics& g) {
+    auto r = getLocalBounds().toFloat();
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff1a1a1d), r.getX(), r.getY(),
+                                           juce::Colour(0xff232327), r.getX(), r.getBottom(),
+                                           false));
+    g.fillRoundedRectangle(r, 4.0f);
+    g.setColour(juce::Colour(0xff0f0f11));
+    g.drawRoundedRectangle(r.reduced(0.5f), 4.0f, 1.0f);
+
+    // centre detent
+    g.setColour(juce::Colour(0xff46464c));
+    g.fillRect(r.getCentreX() - 1.0f, r.getY() + 4.0f, 2.0f, r.getHeight() - 8.0f);
+
+    // lever
+    const float cx = r.getCentreX() + value * (r.getWidth() * 0.42f);
+    juce::Rectangle<float> lev(cx - 7.0f, r.getY() + 3.0f, 14.0f, r.getHeight() - 6.0f);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff4a4a52), lev.getX(), lev.getY(),
+                                           juce::Colour(0xff2a2a30), lev.getX(), lev.getBottom(),
+                                           false));
+    g.fillRoundedRectangle(lev, 3.0f);
+    g.setColour(juce::Colour(0xff101012));
+    g.drawRoundedRectangle(lev.reduced(0.5f), 3.0f, 1.0f);
+}
+
+// ---------------------------------------------------------------------
+LfoTrigButton::LfoTrigButton(OhASynthProcessor& p) : proc(p) {}
+
+void LfoTrigButton::mouseDown(const juce::MouseEvent&) {
+    held = true;
+    proc.uiLfoTrig.store(true);
+    repaint();
+}
+
+void LfoTrigButton::mouseUp(const juce::MouseEvent&) {
+    held = false;
+    proc.uiLfoTrig.store(false);
+    repaint();
+}
+
+void LfoTrigButton::paint(juce::Graphics& g) {
+    auto r = getLocalBounds().toFloat().reduced(0.5f);
+    g.setColour(held ? juce::Colour(0xff3d3d45) : juce::Colour(0xff1d1d20));
+    g.fillRoundedRectangle(r, 3.0f);
+    g.setColour(juce::Colour(0xff0f0f11));
+    g.drawRoundedRectangle(r, 3.0f, 1.0f);
+
+    g.setColour(held ? col::cream : col::creamDim);
+    g.setFont(juce::FontOptions(9.0f));
+    drawTracked(g, "LFO TRIG", { 9.0f, r.getCentreY() + 3.0f }, 1.0f);
+}
+
+// ---------------------------------------------------------------------
 ChorusButtons::ChorusButtons(juce::RangedAudioParameter& p)
     : attachment(p, [this](float v) { value = (int) std::lround(v); repaint(); }, nullptr) {
     attachment.sendInitialUpdate();
@@ -105,7 +191,7 @@ ChorusButtons::ChorusButtons(juce::RangedAudioParameter& p)
 
 juce::Rectangle<float> ChorusButtons::buttonRect(int i) const {
     const float size = 46.0f;
-    return { (float) i * (size + 8.0f), (float) getHeight() - size - 6.0f, size, size };
+    return { (float) i * (size + 8.0f), (float) getHeight() - size - 14.0f, size, size };
 }
 
 void ChorusButtons::paint(juce::Graphics& g) {
@@ -123,10 +209,9 @@ void ChorusButtons::paint(juce::Graphics& g) {
         // LED
         juce::Rectangle<float> led(r.getCentreX() - 4.0f, r.getY() + 9.0f, 8.0f, 8.0f);
         if (on) {
-            const juce::Colour glow(0xffff5a3c);
-            g.setColour(glow.withAlpha(0.30f));
+            g.setColour(col::led.withAlpha(0.30f));
             g.fillEllipse(led.expanded(4.0f));
-            g.setColour(glow);
+            g.setColour(col::led);
             g.fillEllipse(led);
         } else {
             g.setColour(juce::Colour(0xff4a1410));
@@ -171,7 +256,7 @@ void SegSwitch::showSelection(float denormValue) {
 
 void SegSwitch::resized() {
     auto r = getLocalBounds();
-    const int h = juce::jmin(22, (r.getHeight() - 2 * (buttons.size() - 1)) / buttons.size());
+    const int h = juce::jmin(21, (r.getHeight() - 2 * (buttons.size() - 1)) / buttons.size());
     // option 0 at the bottom, like the hardware switches
     for (int i = 0; i < buttons.size(); ++i)
         buttons[i]->setBounds(r.getX(), r.getBottom() - (i + 1) * (h + 2) + 2, r.getWidth(), h);
@@ -199,23 +284,26 @@ void Section::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(r.reduced(0.5f), 6.0f, 1.0f);
 
     g.setColour(accent);
-    g.fillRect(2, headerH - 2, getWidth() - 4, 2);
+    g.fillRect(2, secHeadH - 2, getWidth() - 4, 2);
+
     g.setColour(col::cream);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText(title, 0, 0, getWidth(), headerH - 2, juce::Justification::centred);
+    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    const float tw = juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), title)
+        + 2.0f * (float) title.length();
+    drawTracked(g, title, { ((float) getWidth() - tw) * 0.5f, 15.0f }, 2.0f);
 
     g.setColour(col::creamDim);
-    g.setFont(juce::FontOptions(9.5f));
+    g.setFont(juce::FontOptions(9.0f));
     for (auto& it : items) {
         auto b = it.comp->getBounds();
-        g.drawText(it.label, b.getX() - 6, getHeight() - labelH, b.getWidth() + 12, labelH - 2,
+        g.drawText(it.label, b.getX() - 8, getHeight() - labelH, b.getWidth() + 16, labelH - 2,
                    juce::Justification::centred);
     }
 }
 
 void Section::resized() {
     int x = padX;
-    const int top = headerH + 6;
+    const int top = secHeadH + 6;
     const int h = getHeight() - top - labelH - 2;
     for (auto& it : items) {
         it.comp->setBounds(x, top, it.width, h);
@@ -223,22 +311,69 @@ void Section::resized() {
     }
 }
 
+// ---------------------------------------------------------------------
+BenderBox::BenderBox(OhASynthProcessor& p) : lever(p), trig(p) {
+    addAndMakeVisible(lever);
+    addAndMakeVisible(trig);
+    for (auto* s : { &dcoMini, &vcfMini }) {
+        s->setSliderStyle(juce::Slider::LinearVertical);
+        s->setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        addAndMakeVisible(*s);
+    }
+    dcoAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        p.apvts, "bendDco", dcoMini);
+    vcfAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        p.apvts, "bendVcf", vcfMini);
+}
+
+void BenderBox::paint(juce::Graphics& g) {
+    auto r = getLocalBounds().toFloat();
+    g.setColour(col::panel2);
+    g.fillRoundedRectangle(r, 6.0f);
+    g.setColour(juce::Colour(0xff38383e));
+    g.drawRoundedRectangle(r.reduced(0.5f), 6.0f, 1.0f);
+
+    g.setColour(col::creamDim);
+    g.setFont(juce::FontOptions(9.0f));
+    auto lb = lever.getBounds();
+    g.drawText("BENDER", lb.getX(), lb.getBottom() + 1, lb.getWidth(), 12,
+               juce::Justification::centred);
+    g.drawText("DCO", dcoMini.getX() - 6, getHeight() - labelH, dcoMini.getWidth() + 12, 12,
+               juce::Justification::centred);
+    g.drawText("VCF", vcfMini.getX() - 6, getHeight() - labelH, vcfMini.getWidth() + 12, 12,
+               juce::Justification::centred);
+}
+
+void BenderBox::resized() {
+    auto r = getLocalBounds().reduced(10, 9);
+    auto levers = r.removeFromLeft(112);
+    lever.setBounds(levers.removeFromTop(34));
+    levers.removeFromTop(14);                       // BENDER label
+    trig.setBounds(levers.removeFromTop(24).reduced(6, 0));
+
+    r.removeFromLeft(10);
+    auto minis = r.removeFromTop(64 + labelH - 4);
+    dcoMini.setBounds(minis.removeFromLeft(28));
+    minis.removeFromLeft(4);
+    vcfMini.setBounds(minis.removeFromLeft(28));
+}
+
 } // namespace oha
 
 // ---------------------------------------------------------------------
 OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
-    : AudioProcessorEditor(&p), proc(p),
+    : AudioProcessorEditor(&p), proc(p), benderBox(p),
       keyboard(p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard) {
     setLookAndFeel(&lnf);
     using oha::Section;
     namespace col = oha::col;
+    using namespace oha::metrics;
 
-    const int SL = 36, SEG = 52;
+    const int SL = sliderW, SEG = segW;
 
     auto* main = sections.emplace_back(std::make_unique<Section>("MAIN", col::red)).get();
     main->add(makeSlider("volume"), "VOLUME", SL);
     main->add(makeSlider("velSens"), "VEL", SL);
-    main->add(makeSlider("bendDco"), "BEND", SL);
 
     auto* lfo = sections.emplace_back(std::make_unique<Section>("LFO", col::blue)).get();
     lfo->add(makeSlider("lfoRate"), "RATE", SL);
@@ -298,6 +433,8 @@ OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
     };
     addAndMakeVisible(presetBox);
 
+    addAndMakeVisible(benderBox);
+
     // cream/charcoal keybed
     keyboard.setAvailableRange(36, 84);
     keyboard.setOctaveForMiddleC(4);
@@ -315,9 +452,10 @@ OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
     keyboard.setColour(juce::MidiKeyboardComponent::textLabelColourId, juce::Colour(0xff8a8270));
     addAndMakeVisible(keyboard);
 
-    int w = 16;
-    for (auto& s : sections) w += s->idealWidth() + 8;
-    setSize(juce::jmax(w + 8, 900) + cheekW * 2, 560);
+    int contentW = 14;                       // panel side padding
+    for (auto& s : sections) contentW += s->idealWidth() + 8;
+    setSize(juce::jmax(contentW + 6, 900) + cheekW * 2,
+            headerH + sectionH + 22 + bottomH + 4);
 }
 
 OhASynthEditor::~OhASynthEditor() {
@@ -388,30 +526,54 @@ void OhASynthEditor::drawWoodCheek(juce::Graphics& g, juce::Rectangle<int> area,
 
 void OhASynthEditor::paint(juce::Graphics& g) {
     namespace col = oha::col;
+    using namespace oha::metrics;
+
+    g.fillAll(juce::Colour(0xff141416));
+
     auto full = getLocalBounds();
-
-    // metal face with a slight vertical sheen
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff313137), 0, 0,
-                                           juce::Colour(0xff26262a), 0, (float) getHeight(), false));
-    g.fillAll();
-
     drawWoodCheek(g, full.removeFromLeft(cheekW), true);
     drawWoodCheek(g, full.removeFromRight(cheekW), false);
 
-    // logo
-    g.setColour(col::cream);
-    g.setFont(juce::FontOptions(23.0f, juce::Font::bold | juce::Font::italic));
-    g.drawText("Oh-a-synth", cheekW + 16, 8, 200, 30, juce::Justification::centredLeft);
+    // Three stacked bars — header / panel / bottom — as on the web panel.
+    auto bar = [&g](juce::Rectangle<int> area, juce::Colour top, juce::Colour bottom,
+                    float radTop, float radBottom) {
+        auto r = area.toFloat();
+        juce::Path p;
+        p.addRoundedRectangle(r.getX(), r.getY(), r.getWidth(), r.getHeight(),
+                              juce::jmax(radTop, radBottom), juce::jmax(radTop, radBottom),
+                              radTop > 0, radTop > 0, radBottom > 0, radBottom > 0);
+        g.setGradientFill(juce::ColourGradient(top, r.getX(), r.getY(),
+                                               bottom, r.getX(), r.getBottom(), false));
+        g.fillPath(p);
+        g.setColour(col::edge);
+        g.strokePath(p, juce::PathStrokeType(1.0f));
+    };
 
+    bar(headerArea, juce::Colour(0xff323237), juce::Colour(0xff2a2a2e), 8.0f, 0.0f);
+    bar(panelArea,  juce::Colour(0xff2e2e33), col::panel,               0.0f, 0.0f);
+    bar(bottomArea, col::panel,               juce::Colour(0xff242428), 0.0f, 8.0f);
+
+    // ----- logo -----
+    const float lx = (float) headerArea.getX() + 16.0f;
+    const float baseY = (float) headerArea.getCentreY() + 7.0f;
+
+    g.setColour(col::cream);
+    g.setFont(juce::FontOptions(21.0f, juce::Font::bold | juce::Font::italic));
+    g.drawSingleLineText("Oh-a-synth", juce::roundToInt(lx), juce::roundToInt(baseY));
+    const float logoW = juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), "Oh-a-synth");
+
+    // accent stripes, vertically centred like the web header
     const juce::Colour stripes[] = { col::red, col::orange, col::yellow, col::blue };
+    const float sx = lx + logoW + 14.0f;
     for (int i = 0; i < 4; ++i) {
         g.setColour(stripes[i]);
-        g.fillRect(cheekW + 192 + i * 7, 14, 5, 17);
+        g.fillRect(sx + (float) i * 7.0f, (float) headerArea.getCentreY() - 8.0f, 5.0f, 16.0f);
     }
+
     g.setColour(col::creamDim);
     g.setFont(juce::FontOptions(10.0f));
-    g.drawText("POLYPHONIC SYNTHESIZER", cheekW + 232, 8, 320, 30,
-               juce::Justification::centredLeft);
+    oha::drawTracked(g, "POLYPHONIC SYNTHESIZER",
+                     { sx + 4 * 7.0f + 14.0f, (float) headerArea.getCentreY() + 4.0f }, 2.4f);
 
     // recessed keybed surround
     auto kb = keyboard.getBounds().expanded(4);
@@ -422,23 +584,34 @@ void OhASynthEditor::paint(juce::Graphics& g) {
 }
 
 void OhASynthEditor::resized() {
+    using namespace oha::metrics;
+
     auto r = getLocalBounds();
     r.removeFromLeft(cheekW);
     r.removeFromRight(cheekW);
-    r.reduce(8, 8);
 
-    auto header = r.removeFromTop(38);
-    presetBox.setBounds(header.removeFromRight(180).reduced(0, 6));
+    headerArea = r.removeFromTop(headerH);
+    panelArea  = r.removeFromTop(sectionH + 22);
+    bottomArea = r;
 
-    auto kbArea = r.removeFromBottom(keybedH);
-    keyboard.setBounds(kbArea.reduced(2, 6));
-    keyboard.setKeyWidth((float) keyboard.getWidth() / 29.0f);
+    // header: preset menu on the right
+    presetBox.setBounds(headerArea.reduced(16, 11).removeFromRight(180));
 
-    r.removeFromBottom(6);
-    r.removeFromTop(2);
-    int x = r.getX();
+    // panel: sections left to right
+    auto panel = panelArea.reduced(7, 0);
+    int x = panel.getX();
+    const int secY = panel.getY() + 11;
     for (auto& s : sections) {
-        s->setBounds(x, r.getY(), s->idealWidth(), r.getHeight() - 4);
+        s->setBounds(x, secY, s->idealWidth(), sectionH);
         x += s->idealWidth() + 8;
     }
+
+    // bottom: bender box, then keyboard
+    auto bottom = bottomArea.reduced(14, 14);
+    benderBox.setBounds(bottom.getX(),
+                        bottom.getCentreY() - oha::BenderBox::prefH / 2,
+                        oha::BenderBox::prefW, oha::BenderBox::prefH);
+    bottom.removeFromLeft(oha::BenderBox::prefW + 14);
+    keyboard.setBounds(bottom.withHeight(keybedH).withY(bottom.getCentreY() - keybedH / 2));
+    keyboard.setKeyWidth((float) keyboard.getWidth() / 29.0f);
 }

@@ -18,7 +18,28 @@ namespace col {
     const juce::Colour yellow     { 0xffe6d06b };
     const juce::Colour blue       { 0xff4f9ed9 };
     const juce::Colour green      { 0xff9bba5e };
+    const juce::Colour led        { 0xffff5a3c };
 }
+
+// Layout metrics, taken from the web app so the two panels match.
+namespace metrics {
+    constexpr int sliderW  = 32;   // slider column width
+    constexpr int segW     = 44;   // segmented-switch column width
+    constexpr int sectionH = 178;  // yields a 130px slider track, as on the web
+    constexpr int headerH  = 48;
+    constexpr int keybedH  = 150;
+    constexpr int bottomH  = 179;
+    constexpr int cheekW   = 34;   // wooden end cheeks
+    constexpr int secHeadH = 24;
+    constexpr int labelH   = 16;
+    constexpr int padX     = 7;
+    constexpr int gap      = 4;
+}
+
+// Draw text with letter spacing (CSS letter-spacing has no direct JUCE
+// equivalent, and the tracking is a big part of the panel's look).
+void drawTracked(juce::Graphics&, const juce::String&, juce::Point<float> origin,
+                 float tracking);
 
 class OhaLookAndFeel : public juce::LookAndFeel_V4 {
 public:
@@ -33,6 +54,36 @@ public:
                               const juce::Colour& backgroundColour,
                               bool shouldDrawButtonAsHighlighted,
                               bool shouldDrawButtonAsDown) override;
+};
+
+// Spring-back horizontal pitch-bend lever, as on the hardware.
+class BenderLever : public juce::Component {
+public:
+    explicit BenderLever(OhASynthProcessor&);
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
+
+private:
+    void setFromMouse(const juce::MouseEvent&);
+    void push(float v);
+
+    OhASynthProcessor& proc;
+    float value = 0.0f;
+};
+
+// Momentary button: while held, the LFO ignores its delay fade-in.
+class LfoTrigButton : public juce::Component {
+public:
+    explicit LfoTrigButton(OhASynthProcessor&);
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
+
+private:
+    OhASynthProcessor& proc;
+    bool held = false;
 };
 
 // The two hardware chorus buttons with LEDs: I, II, both = I+II.
@@ -81,8 +132,23 @@ private:
     juce::String title;
     juce::Colour accent;
     std::vector<Item> items;
+};
 
-    static constexpr int headerH = 24, labelH = 16, padX = 7, gap = 4;
+// Bend / LFO-trig box that sits to the left of the keyboard, as on the web
+// panel. Holds the bender lever, LFO TRIG, and the two bend-depth minis.
+class BenderBox : public juce::Component {
+public:
+    explicit BenderBox(OhASynthProcessor&);
+    void paint(juce::Graphics&) override;
+    void resized() override;
+
+    static constexpr int prefW = 206, prefH = 103;
+
+private:
+    BenderLever lever;
+    LfoTrigButton trig;
+    juce::Slider dcoMini, vcfMini;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dcoAtt, vcfAtt;
 };
 
 } // namespace oha
@@ -108,10 +174,11 @@ private:
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAtts;
 
     juce::ComboBox presetBox;
+    oha::BenderBox benderBox;
     juce::MidiKeyboardComponent keyboard;
 
-    static constexpr int cheekW = 34;   // wooden end cheeks
-    static constexpr int keybedH = 150; // taller, more playable keys
+    // stacked bars (header / panel / bottom), stored for paint()
+    juce::Rectangle<int> headerArea, panelArea, bottomArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OhASynthEditor)
 };

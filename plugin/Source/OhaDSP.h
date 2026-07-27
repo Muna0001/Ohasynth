@@ -257,6 +257,9 @@ public:
 
     void pitchBend(float v) { smBend.t = clampf(v, -1.0f, 1.0f); }
     void modWheel(float v)  { smMod.t = clampf(v, 0.0f, 1.0f); }
+    // Held LFO TRIG forces the LFO to full depth, overriding the delay
+    // fade-in — same as the web version's panel button.
+    void lfoTrig(bool on)   { lfoTrigHeld = on; }
 
     void allNotesOff() {
         for (auto& h : held) h = false;
@@ -290,7 +293,8 @@ public:
             if (lfoPhase >= 1.0f) lfoPhase -= 1.0f;
             float lfoRaw = lfoPhase < 0.5f ? lfoPhase * 4 - 1 : 3 - lfoPhase * 4;
             if (holding) lfoTime += invFs;
-            float lfoEnv = clampf((lfoTime - lfoDelaySec) / lfoFadeSec, 0.0f, 1.0f);
+            float lfoEnv = lfoTrigHeld ? 1.0f
+                : clampf((lfoTime - lfoDelaySec) / lfoFadeSec, 0.0f, 1.0f);
             float lfo = lfoRaw * lfoEnv;
 
             float bend = smBend.tick();
@@ -481,6 +485,7 @@ private:
     float hpA = 0, shelfC = 0, gateC = 0;
     float rangeMult = 1, bendSemis = 2;
     float lfoPhase = 0, lfoTime = 100;
+    bool lfoTrigHeld = false;
 
     Chorus chorus;
     float dcA = 0, dcL = 0, dcLx = 0, dcR = 0, dcRx = 0;

@@ -35,6 +35,13 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;
 
+    // Written by the editor's bender lever / LFO TRIG button on the message
+    // thread, consumed once per block. Pitch bend is not an automatable
+    // parameter (it arrives as MIDI), so it needs its own channel; whichever
+    // of MIDI or the on-screen lever moved last wins.
+    std::atomic<float> uiBend { 0.0f };
+    std::atomic<bool>  uiLfoTrig { false };
+
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void syncParams();
@@ -51,6 +58,8 @@ private:
 
     oha::Engine engine;
     int currentProgram = 0;
+    float lastUiBend = 0.0f;
+    bool lastUiLfoTrig = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OhASynthProcessor)
 };
