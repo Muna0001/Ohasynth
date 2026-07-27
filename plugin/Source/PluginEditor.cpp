@@ -309,9 +309,39 @@ void BpmField::timerCallback() {
 }
 
 void BpmField::resized() {
+    // external-tempo line above the number, matching the web panel
     auto r = getLocalBounds();
-    ext.setBounds(r.removeFromBottom(12));
-    value.setBounds(r.removeFromBottom(22).reduced(6, 0));
+    ext.setBounds(r.removeFromTop(11));
+    value.setBounds(r.reduced(3, 0));
+}
+
+// ---------------------------------------------------------------------
+void StackColumn::addItem(std::unique_ptr<juce::Component> comp,
+                          const juce::String& label, int height) {
+    addAndMakeVisible(*comp);
+    items.push_back({ std::move(comp), label, height });
+}
+
+void StackColumn::paint(juce::Graphics& g) {
+    g.setColour(col::creamDim);
+    g.setFont(juce::FontOptions(9.0f));
+    for (auto& it : items) {
+        if (it.label.isEmpty()) continue;
+        auto b = it.comp->getBounds();
+        g.drawText(it.label, 0, b.getBottom(), getWidth(), 12, juce::Justification::centred);
+    }
+}
+
+void StackColumn::resized() {
+    // lay out from the bottom up so the column sits on the section baseline
+    int y = getHeight();
+    for (int i = (int) items.size() - 1; i >= 0; --i) {
+        auto& it = items[(size_t) i];
+        const int textH = it.label.isEmpty() ? 0 : 12;   // tighter than a section label
+        y -= textH;
+        it.comp->setBounds(0, y - it.height, getWidth(), it.height);
+        y -= it.height + 4;
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -510,13 +540,21 @@ OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
             jassert(found != nullptr);
             return *found;
         };
-        arp->add(std::make_unique<oha::LedButton>(param("arpOn")), "ON", 38);
+        // ON above HOLD in one column
+        auto onHold = std::make_unique<oha::StackColumn>();
+        onHold->addItem(std::make_unique<oha::LedButton>(param("arpOn")), "ON", 34);
+        onHold->addItem(std::make_unique<oha::LedButton>(param("arpHold")), "HOLD", 34);
+        arp->add(std::move(onHold), "", 40);
+
         arp->add(makeSeg("arpMode", { "UP", "UP&DN", "DOWN" }), "MODE", SEG + 8);
         arp->add(makeSeg("arpRange", { "1", "2", "3" }), "RANGE", SEG);
         arp->add(std::make_unique<oha::ArpRate>(proc), "RATE", SL);
-        arp->add(std::make_unique<oha::LedButton>(param("arpSync")), "SYNC", 38);
-        arp->add(std::make_unique<oha::LedButton>(param("arpHold")), "HOLD", 38);
-        arp->add(std::make_unique<oha::BpmField>(proc), "BPM", 72);
+
+        // BPM directly above SYNC, since the tempo only matters when synced
+        auto bpmSync = std::make_unique<oha::StackColumn>();
+        bpmSync->addItem(std::make_unique<oha::BpmField>(proc), "", 34);
+        bpmSync->addItem(std::make_unique<oha::LedButton>(param("arpSync")), "SYNC", 34);
+        arp->add(std::move(bpmSync), "", 54);
     }
 
     auto* main = sections.emplace_back(std::make_unique<Section>("MAIN", col::red)).get();

@@ -137,6 +137,23 @@ private:
     bool editing = false;
 };
 
+// Two controls sharing one panel column, bottom-aligned, each with its own
+// label underneath. Keeps the arp section from sprawling sideways.
+class StackColumn : public juce::Component {
+public:
+    void addItem(std::unique_ptr<juce::Component>, const juce::String& label, int height);
+    void paint(juce::Graphics&) override;
+    void resized() override;
+
+private:
+    struct Item {
+        std::unique_ptr<juce::Component> comp;
+        juce::String label;
+        int height;
+    };
+    std::vector<Item> items;
+};
+
 // The two hardware chorus buttons with LEDs: I, II, both = I+II.
 // Bound to the 4-value chorus choice param (bit 0 = I, bit 1 = II).
 class ChorusButtons : public juce::Component {

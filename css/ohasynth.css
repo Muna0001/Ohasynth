@@ -218,6 +218,15 @@ html, body {
   box-shadow: 0 0 8px var(--led);
 }
 
+/* two controls sharing one panel column */
+.oha-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 /* ---------- BPM field ---------- */
 .oha-bpm {
   display: flex;
@@ -228,7 +237,6 @@ html, body {
 }
 .oha-bpm-input {
   width: 50px;
-  margin-bottom: 6px;
   background: #1d1d20;
   color: var(--cream);
   border: 1px solid #0f0f11;
@@ -243,8 +251,9 @@ html, body {
 .oha-bpm-ext {
   font-size: 0.55rem;
   letter-spacing: 0.04em;
-  color: transparent;
-  min-height: 0.85em;
+  color: transparent;   /* keeps its space so nothing shifts when it appears */
+  height: 11px;
+  line-height: 11px;
   white-space: nowrap;
 }
 .oha-bpm-ext.on { color: var(--green); }

@@ -116,19 +116,24 @@
     return wrap;
   }
 
+  // Stack two controls into a single panel column, bottom-aligned.
+  function stack() {
+    var wrap = el('div', 'oha-stack');
+    for (var i = 0; i < arguments.length; i++) wrap.appendChild(arguments[i]);
+    return wrap;
+  }
+
   // ---------------------------------------------------------------
   // Tempo used when no external clock is running. When one is, this shows
   // the incoming tempo instead so it is obvious what the arp is following.
   // ---------------------------------------------------------------
   function bpmField(engine) {
     var wrap = el('div', 'oha-bpm');
+    var ext = el('div', 'oha-bpm-ext', wrap);
     var input = el('input', 'oha-bpm-input', wrap);
     input.type = 'number';
     input.min = 40; input.max = 300; input.step = 1;
     input.spellcheck = false;
-    var lab = el('div', 'oha-sl-label', wrap);
-    lab.textContent = 'BPM';
-    var ext = el('div', 'oha-bpm-ext', wrap);
 
     function push() {
       var v = Math.max(40, Math.min(300, Math.round(+input.value || 120)));
@@ -150,8 +155,9 @@
       input.classList.toggle('overridden', live);
       input.title = live
         ? 'Following an external MIDI clock at ' + bpm.toFixed(1) + ' BPM'
-        : 'Tempo used when no external MIDI clock is running';
+        : 'Arp tempo in BPM, used when no external MIDI clock is running';
     });
+    input.title = 'Arp tempo in BPM, used when no external MIDI clock is running';
     return wrap;
   }
 
@@ -289,7 +295,8 @@
   Oha.buildPanel = function (engine, root) {
     // arpeggio sits at the far left, as on the hardware
     var arp = section(root, 'ARPEGGIO', '#4f9ed9');
-    arp.appendChild(ledButton(engine, 'arpOn', 'ON'));
+    arp.appendChild(stack(ledButton(engine, 'arpOn', 'ON'),
+                          ledButton(engine, 'arpHold', 'HOLD')));
     arp.appendChild(seg(engine, 'arpMode', 'MODE', ['UP', 'UP&DN', 'DOWN'], { vertical: true }));
     arp.appendChild(seg(engine, 'arpRange', 'RANGE', ['1', '2', '3'], { vertical: true }));
     arp.appendChild(vslider(engine, 'arpRate', 'RATE', {
@@ -301,11 +308,11 @@
           : (0.5 * Math.pow(40, v)).toFixed(1) + ' Hz';
       }
     }));
-    arp.appendChild(ledButton(engine, 'arpSync', 'SYNC', function () {
-      if (controls.arpRate) controls.arpRate.refresh();
-    }));
-    arp.appendChild(ledButton(engine, 'arpHold', 'HOLD'));
-    arp.appendChild(bpmField(engine));
+    // BPM sits directly above SYNC, since it only matters when synced
+    arp.appendChild(stack(bpmField(engine),
+                          ledButton(engine, 'arpSync', 'SYNC', function () {
+                            if (controls.arpRate) controls.arpRate.refresh();
+                          })));
 
     // left block: volume
     var left = section(root, 'MAIN', '#c8413b');
