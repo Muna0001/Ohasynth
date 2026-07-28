@@ -188,6 +188,9 @@ void OhASynthProcessor::setCurrentProgram(int index) {
     // A preset is the whole panel: anything it does not name goes back to its
     // default rather than keeping the previous patch's value. This matches
     // the web app, where loadPatch() starts from defaultPatch().
+    currentPatchName = presets[(size_t) index].name;
+    currentPatchIsUser = false;
+
     const auto& values = presets[(size_t) index].values;
     for (auto* p : getParameters()) {
         if (auto* rp = dynamic_cast<juce::RangedAudioParameter*>(p)) {
@@ -200,6 +203,41 @@ void OhASynthProcessor::setCurrentProgram(int index) {
     }
 }
 
+juce::var OhASynthProcessor::patchToVar() const {
+    auto* obj = new juce::DynamicObject();
+    obj->setProperty("name", currentPatchName);
+    for (auto* p : getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*>(p))
+            obj->setProperty(juce::Identifier(rp->paramID),
+                             rp->convertFrom0to1(rp->getValue()));
+    return juce::var(obj);
+}
+
+void OhASynthProcessor::applyPatchVar(const juce::var& v) {
+    auto* o = v.getDynamicObject();
+    if (o == nullptr) return;
+    // Anything the patch does not name goes back to its default, matching
+    // loadPatch() in the web app.
+    for (auto* p : getParameters()) {
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*>(p)) {
+            const juce::Identifier id(rp->paramID);
+            float target = rp->convertFrom0to1(rp->getDefaultValue());
+            if (o->hasProperty(id)) target = (float) (double) o->getProperty(id);
+            rp->setValueNotifyingHost(rp->convertTo0to1(target));
+        }
+    }
+    const auto nm = o->getProperty("name").toString();
+    if (nm.isNotEmpty()) currentPatchName = nm;
+}
+
+void OhASynthProcessor::resetToInitPatch() {
+    for (auto* p : getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*>(p))
+            rp->setValueNotifyingHost(rp->getDefaultValue());
+    currentPatchName = "INIT";
+    currentPatchIsUser = false;
+}
+
 const juce::String OhASynthProcessor::getProgramName(int index) {
     const auto& presets = oha::factoryPresets();
     if (index < 0 || index >= (int) presets.size()) return {};
@@ -209,6 +247,8 @@ const juce::String OhASynthProcessor::getProgramName(int index) {
 void OhASynthProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = apvts.copyState();
     state.setProperty("program", currentProgram, nullptr);
+    state.setProperty("patchName", currentPatchName, nullptr);
+    state.setProperty("patchIsUser", currentPatchIsUser, nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary(*xml, destData);
 }
@@ -218,6 +258,8 @@ void OhASynthProcessor::setStateInformation(const void* data, int sizeInBytes) {
         auto state = juce::ValueTree::fromXml(*xml);
         if (state.isValid()) {
             currentProgram = (int) state.getProperty("program", 0);
+            currentPatchName = state.getProperty("patchName", "INIT").toString();
+            currentPatchIsUser = (bool) state.getProperty("patchIsUser", false);
             apvts.replaceState(state);
         }
     }

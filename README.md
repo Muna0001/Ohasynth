@@ -30,10 +30,41 @@ That installs to `/Applications/Oh-a-synth.app`, clears the quarantine flag,
 and refreshes Launch Services so the icon and Spotlight entry appear
 immediately. Launch with `open -a Oh-a-synth` or from Launchpad.
 
-Audio and MIDI devices are chosen in the app's own **Options → Audio/MIDI
-Settings** (top-left of the window). If a newly connected MIDI keyboard isn't
-responding, enable it there under "Active MIDI inputs". The current patch is
-saved automatically and restored on next launch.
+The window uses the normal macOS title bar, so close/minimise/zoom are the
+usual traffic lights at the top left.
+
+Audio and MIDI devices are chosen from **MENU → Audio/MIDI Settings…** in the
+panel header. If a newly connected MIDI keyboard isn't responding, enable it
+there under "Active MIDI inputs". The current patch is saved automatically and
+restored on next launch.
+
+### Patches (MENU button)
+
+Patch management lives behind the **MENU** button next to the patch selector,
+so it stays out of the way while playing:
+
+| Item | What it does |
+|---|---|
+| New Patch | Everything back to defaults (INIT) |
+| Save Patch… | Names the current sound and stores it as a user patch |
+| Add / Remove Favourite ♥ | Hearts a patch; favourites get their own section at the top of the selector |
+| Export Patch… | Writes a `.ohasynth.json` file anywhere you like |
+| Import Patch… | Reads one back in and adds it to your user patches |
+| Delete Patch | Removes the current user patch (disabled for factory presets) |
+| Show Patch Folder | Reveals the folder in Finder |
+
+Storage, shared by the app and the plugin so patches appear in both:
+
+```
+~/Library/Application Support/Oh-a-synth/Patches/<name>.ohasynth.json
+~/Library/Application Support/Oh-a-synth/favourites.txt
+```
+
+**Patches move between the browser and the native builds.** The export format
+is the same flat JSON the web app writes (`paramID: value`, plus `name`), so a
+patch saved in the app imports in the browser and vice versa. Anything a patch
+file doesn't name falls back to its default, so older patches saved before a
+parameter existed still load.
 
 ---
 
@@ -82,9 +113,11 @@ AudioWorklet processor, so parameter changes are smoothed sample-accurately
 ## Part 3 — DAW plugin (Logic / any DAW)
 
 All panel parameters are host-automatable and saved with the DAW project; the
-8 factory presets are exposed as plugin programs and from a preset menu in the
-editor. Every instance is independent, so you can run it on as many tracks as
-you like.
+8 factory presets are exposed as plugin programs and from the patch selector
+in the editor. Every instance is independent, so you can run it on as many
+tracks as you like. The MENU button works here too and shares the same patch
+folder as the standalone app — only "Audio/MIDI Settings…" is app-only, since
+the DAW owns the audio device.
 
 Build it (below), then in Logic: rescan via Logic Pro → Settings → Plug-in
 Manager (or just restart Logic), and insert **AU Instruments → Oh-a-synth →

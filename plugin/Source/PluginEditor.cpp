@@ -1,5 +1,14 @@
 #include "PluginEditor.h"
 
+#include "PatchStore.h"
+
+// Only the standalone has an audio device to configure; this gives the panel
+// menu a way to open JUCE's Audio/MIDI settings now that the app uses the
+// native title bar (where JUCE's own "Options" button used to live).
+#if JucePlugin_Build_Standalone
+ #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
+#endif
+
 namespace oha {
 
 using namespace metrics;
@@ -607,17 +616,19 @@ OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
 
     for (auto& s : sections) addAndMakeVisible(*s);
 
-    // preset selector
-    const auto& presets = oha::factoryPresets();
-    for (int i = 0; i < (int) presets.size(); ++i)
-        presetBox.addItem(presets[(size_t) i].name, i + 1);
-    presetBox.setSelectedId(proc.getCurrentProgram() + 1, juce::dontSendNotification);
-    presetBox.setTextWhenNothingSelected("PRESETS");
+    // patch browser
+    presetBox.setTextWhenNothingSelected("PATCHES");
     presetBox.onChange = [this] {
-        const int idx = presetBox.getSelectedId() - 1;
-        if (idx >= 0) proc.setCurrentProgram(idx);
+        const int sel = presetBox.getSelectedId();
+        for (const auto& [id, patchId] : comboMap)
+            if (id == sel) { loadPatchId(patchId); return; }
     };
     addAndMakeVisible(presetBox);
+    rebuildPatchList();
+
+    menuButton.onClick = [this] { showPatchMenu(); };
+    menuButton.setTooltip("Create, save, favourite and export patches");
+    addAndMakeVisible(menuButton);
 
     addAndMakeVisible(benderBox);
 
@@ -663,6 +674,206 @@ std::unique_ptr<oha::SegSwitch> OhASynthEditor::makeSeg(const juce::String& para
     auto* p = proc.apvts.getParameter(paramID);
     jassert(p != nullptr);
     return std::make_unique<oha::SegSwitch>(*p, options);
+}
+
+// ---------------------------------------------------------------------
+// Patch browser + settings menu
+// ---------------------------------------------------------------------
+static const juce::String kHeart = juce::String::fromUTF8("\xE2\x99\xA5");
+
+juce::String OhASynthEditor::currentPatchId() const {
+    return (proc.currentPatchIsUser ? "U:" : "F:") + proc.currentPatchName;
+}
+
+void OhASynthEditor::rebuildPatchList() {
+    presetBox.clear(juce::dontSendNotification);
+    comboMap.clear();
+
+    const auto favs = oha::PatchStore::favourites();
+    const auto users = oha::PatchStore::names();
+    const auto& factory = oha::factoryPresets();
+
+    int nextId = 1;
+    auto addRow = [&](const juce::String& patchId, const juce::String& name) {
+        const bool fav = favs.contains(patchId);
+        presetBox.addItem((fav ? kHeart + "  " : juce::String("     ")) + name, nextId);
+        comboMap.push_back({ nextId, patchId });
+        ++nextId;
+    };
+
+    if (! favs.isEmpty()) {
+        presetBox.addSectionHeading("FAVOURITES");
+        for (const auto& id : favs)
+            if (id.startsWith("F:") || oha::PatchStore::exists(id.substring(2)))
+                addRow(id, id.substring(2));
+    }
+
+    presetBox.addSectionHeading("FACTORY");
+    for (const auto& p : factory) addRow("F:" + juce::String(p.name), p.name);
+
+    if (! users.isEmpty()) {
+        presetBox.addSectionHeading("USER");
+        for (const auto& n : users) addRow("U:" + n, n);
+    }
+
+    // reflect what is loaded, preferring the non-favourites row
+    const auto want = currentPatchId();
+    for (auto it = comboMap.rbegin(); it != comboMap.rend(); ++it)
+        if (it->second == want) {
+            presetBox.setSelectedId(it->first, juce::dontSendNotification);
+            break;
+        }
+}
+
+void OhASynthEditor::loadPatchId(const juce::String& patchId) {
+    if (patchId.startsWith("F:")) {
+        const auto name = patchId.substring(2);
+        const auto& f = oha::factoryPresets();
+        for (int i = 0; i < (int) f.size(); ++i)
+            if (name == f[(size_t) i].name) { proc.setCurrentProgram(i); break; }
+    } else if (patchId.startsWith("U:")) {
+        const auto name = patchId.substring(2);
+        proc.applyPatchVar(oha::PatchStore::load(name));
+        proc.currentPatchName = name;
+        proc.currentPatchIsUser = true;
+    }
+}
+
+void OhASynthEditor::promptSavePatch() {
+    auto* w = new juce::AlertWindow("Save Patch",
+                                    "Name this patch:",
+                                    juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor("name", proc.currentPatchName, juce::String());
+    w->addButton("Save", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    w->enterModalState(true, juce::ModalCallbackFunction::create([this, w](int result) {
+        const auto name = oha::PatchStore::tidyName(w->getTextEditorContents("name"));
+        w->exitModalState(result);
+        w->setVisible(false);
+        if (result == 1 && name.isNotEmpty()) {
+            proc.currentPatchName = name;
+            proc.currentPatchIsUser = true;
+            oha::PatchStore::save(name, proc.patchToVar());
+            rebuildPatchList();
+        }
+    }), true);
+}
+
+void OhASynthEditor::exportPatch() {
+    const auto suggested = juce::File::getSpecialLocation(juce::File::userDesktopDirectory)
+        .getChildFile(juce::File::createLegalFileName(proc.currentPatchName.toLowerCase())
+                      + oha::PatchStore::extension);
+    chooser = std::make_unique<juce::FileChooser>("Export Patch", suggested, "*.json");
+    chooser->launchAsync(juce::FileBrowserComponent::saveMode
+                             | juce::FileBrowserComponent::warnAboutOverwriting,
+                         [this](const juce::FileChooser& fc) {
+        auto f = fc.getResult();
+        if (f != juce::File())
+            f.replaceWithText(juce::JSON::toString(proc.patchToVar(), false));
+    });
+}
+
+void OhASynthEditor::importPatch() {
+    chooser = std::make_unique<juce::FileChooser>("Import Patch", juce::File(), "*.json");
+    chooser->launchAsync(juce::FileBrowserComponent::openMode
+                             | juce::FileBrowserComponent::canSelectFiles,
+                         [this](const juce::FileChooser& fc) {
+        auto f = fc.getResult();
+        if (f == juce::File() || ! f.existsAsFile()) return;
+        auto v = juce::JSON::parse(f);
+        if (v.getDynamicObject() == nullptr) {
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                "Import Patch", "That file is not a readable Oh-a-synth patch.");
+            return;
+        }
+        proc.applyPatchVar(v);
+        auto name = oha::PatchStore::tidyName(proc.currentPatchName);
+        if (name.isEmpty()) name = f.getFileName().upToFirstOccurrenceOf(".", false, false);
+        proc.currentPatchName = name;
+        proc.currentPatchIsUser = true;
+        oha::PatchStore::save(name, proc.patchToVar());
+        rebuildPatchList();
+    });
+}
+
+void OhASynthEditor::showPatchMenu() {
+    const auto id = currentPatchId();
+    const bool isFav = oha::PatchStore::isFavourite(id);
+    const bool isUser = proc.currentPatchIsUser;
+
+    juce::PopupMenu m;
+    m.addSectionHeader(proc.currentPatchName);
+    m.addItem(1, "New Patch");
+    m.addItem(2, "Save Patch...");
+    m.addItem(3, (isFav ? "Remove from Favourites  " + kHeart
+                        : "Add to Favourites  " + kHeart));
+    m.addSeparator();
+    m.addItem(4, "Export Patch...");
+    m.addItem(5, "Import Patch...");
+    m.addItem(6, "Delete Patch", isUser);
+    m.addSeparator();
+    m.addItem(7, "Show Patch Folder");
+#if JucePlugin_Build_Standalone
+    if (juce::StandalonePluginHolder::getInstance() != nullptr)
+        m.addItem(8, "Audio/MIDI Settings...");
+#endif
+
+    m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&menuButton),
+                    [this, id, isFav](int choice) {
+        switch (choice) {
+            case 1:
+                proc.resetToInitPatch();
+                rebuildPatchList();
+                break;
+            case 2: promptSavePatch(); break;
+            case 3:
+                oha::PatchStore::setFavourite(id, ! isFav);
+                rebuildPatchList();
+                break;
+            case 4: exportPatch(); break;
+            case 5: importPatch(); break;
+            case 6:
+                if (proc.currentPatchIsUser) {
+                    oha::PatchStore::remove(proc.currentPatchName);
+                    proc.setCurrentProgram(0);
+                    rebuildPatchList();
+                }
+                break;
+            case 7: oha::PatchStore::patchDir().revealToUser(); break;
+#if JucePlugin_Build_Standalone
+            case 8:
+                if (auto* holder = juce::StandalonePluginHolder::getInstance())
+                    holder->showAudioSettingsDialog();
+                break;
+#endif
+            default: break;
+        }
+    });
+}
+
+// The standalone gets the real macOS title bar (traffic lights top left)
+// instead of the one JUCE draws with its own buttons on the right. JUCE's
+// "Options" button lived in that title bar, so it is hidden here and its
+// contents reached through the panel menu instead.
+void OhASynthEditor::parentHierarchyChanged() {
+    if (nativeTitleBarApplied || ! juce::JUCEApplicationBase::isStandaloneApp()) return;
+    if (dynamic_cast<juce::DocumentWindow*>(getTopLevelComponent()) == nullptr) return;
+
+    nativeTitleBarApplied = true;
+    // Deferred: swapping the title bar recreates the window peer, and doing
+    // that while the window is still being set up loses the content size.
+    const int w = getWidth(), h = getHeight();
+    juce::Component::SafePointer<OhASynthEditor> safeThis(this);
+    juce::MessageManager::callAsync([safeThis, w, h] {
+        if (safeThis == nullptr) return;
+        auto* win = dynamic_cast<juce::DocumentWindow*>(safeThis->getTopLevelComponent());
+        if (win == nullptr) return;
+        win->setUsingNativeTitleBar(true);
+        for (auto* child : win->getChildren())
+            if (auto* b = dynamic_cast<juce::Button*>(child))
+                if (b->getButtonText() == "Options") b->setVisible(false);
+        win->setContentComponentSize(w, h);
+    });
 }
 
 void OhASynthEditor::drawWoodCheek(juce::Graphics& g, juce::Rectangle<int> area, bool isLeft) const {
@@ -780,8 +991,11 @@ void OhASynthEditor::resized() {
     panelArea  = r.removeFromTop(sectionH + 22);
     bottomArea = r;
 
-    // header: preset menu on the right
-    presetBox.setBounds(headerArea.reduced(16, 11).removeFromRight(180));
+    // header: patch browser and its menu on the right
+    auto hdr = headerArea.reduced(16, 11);
+    menuButton.setBounds(hdr.removeFromRight(58));
+    hdr.removeFromRight(6);
+    presetBox.setBounds(hdr.removeFromRight(200));
 
     // panel: sections left to right
     auto panel = panelArea.reduced(7, 0);

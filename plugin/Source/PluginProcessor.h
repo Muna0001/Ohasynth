@@ -32,6 +32,16 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    // Patch interchange in the web app's flat JSON shape (paramID -> value,
+    // plus "name"), so patches move between the browser and the native builds.
+    juce::var patchToVar() const;
+    void applyPatchVar(const juce::var&);
+    void resetToInitPatch();
+
+    // What the editor considers loaded, for save / favourite / delete.
+    juce::String currentPatchName { "INIT" };
+    bool currentPatchIsUser = false;
+
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;
 

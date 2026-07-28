@@ -228,6 +228,7 @@ public:
 
     void paint(juce::Graphics&) override;
     void resized() override;
+    void parentHierarchyChanged() override;
 
 private:
     std::unique_ptr<juce::Slider> makeSlider(const juce::String& paramID);
@@ -241,7 +242,21 @@ private:
     std::vector<std::unique_ptr<oha::Section>> sections;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAtts;
 
+    // patch browser + settings menu (create / save / favourite / export)
+    void rebuildPatchList();
+    void showPatchMenu();
+    void loadPatchId(const juce::String& patchId);
+    juce::String currentPatchId() const;
+    void promptSavePatch();
+    void exportPatch();
+    void importPatch();
+
     juce::ComboBox presetBox;
+    juce::TextButton menuButton { "MENU" };
+    std::vector<std::pair<int, juce::String>> comboMap;   // combo item id -> patch id
+    std::unique_ptr<juce::FileChooser> chooser;           // kept alive while async
+    bool nativeTitleBarApplied = false;
+
     oha::BenderBox benderBox;
     juce::MidiKeyboardComponent keyboard;
 
