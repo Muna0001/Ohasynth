@@ -621,8 +621,8 @@ OhASynthEditor::OhASynthEditor(OhASynthProcessor& p)
 
     addAndMakeVisible(benderBox);
 
-    // cream/charcoal keybed
-    keyboard.setAvailableRange(36, 84);
+    // cream/charcoal keybed, C1..C7
+    keyboard.setAvailableRange(24, 96);
     keyboard.setOctaveForMiddleC(4);
     keyboard.setScrollButtonsVisible(false);
     keyboard.setBlackNoteWidthProportion(0.62f);
@@ -799,5 +799,5 @@ void OhASynthEditor::resized() {
                         oha::BenderBox::prefW, oha::BenderBox::prefH);
     bottom.removeFromLeft(oha::BenderBox::prefW + 14);
     keyboard.setBounds(bottom.withHeight(keybedH).withY(bottom.getCentreY() - keybedH / 2));
-    keyboard.setKeyWidth((float) keyboard.getWidth() / 29.0f);
+    keyboard.setKeyWidth((float) keyboard.getWidth() / 43.0f);  // 43 white keys, C1..C7
 }

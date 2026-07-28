@@ -1,5 +1,5 @@
 /*
- * On-screen keyboard (C2..C6) + computer-keyboard mapping.
+ * On-screen keyboard (C1..C7) + computer-keyboard mapping.
  *
  * Computer keys: a w s e d f t g y h u j k o l p ;  starting at C4,
  * shifted with Z (octave down) / X (octave up).
@@ -8,7 +8,7 @@
   'use strict';
   window.Oha = window.Oha || {};
 
-  var LOW = 36, HIGH = 84; // C2..C6
+  var LOW = 24, HIGH = 96; // C1..C7 (6 octaves)
   var BLACK = { 1: true, 3: true, 6: true, 8: true, 10: true };
 
   var KEYMAP = {

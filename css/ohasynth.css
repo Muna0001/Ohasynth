@@ -25,7 +25,9 @@ html, body {
 }
 
 #app {
-  max-width: 1320px;
+  /* sized to its widest row (the panel) so the panel and the keybed line up
+     at one width instead of the panel scrolling inside a narrower shell */
+  width: max-content;
   margin: 18px auto;
   padding: 0 12px;
 }
@@ -93,7 +95,6 @@ html, body {
   background: linear-gradient(#2e2e33, var(--panel));
   border: 1px solid var(--panel-edge);
   padding: 12px 14px 16px;
-  overflow-x: auto;
 }
 
 .oha-section {
@@ -224,8 +225,12 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 5px;
 }
+/* Keep each label tight under its own button, as in the native editor —
+   otherwise a label sits nearer the button below it than its own. */
+.oha-stack .oha-ledbtn { margin-bottom: 0; }
+.oha-stack .oha-ledbtn-wrap .oha-sl-label { margin-top: 2px; }
 
 /* ---------- BPM field ---------- */
 .oha-bpm {
