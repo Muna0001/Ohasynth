@@ -156,6 +156,34 @@ machine, Gatekeeper needs `xattr -dr com.apple.quarantine <path>` (or
 right-click → Open) the first time. Proper distribution needs an Apple
 Developer ID.
 
+## Typeface
+
+All three parts use **Archivo** (SIL OFL 1.1, Omnibus-Type) — the same face as
+the product site, so the panel reads the same everywhere it appears. It ships
+with the app rather than being installed, in two forms:
+
+| Part | Form | Where |
+|---|---|---|
+| Web app | Both faces inlined as base64 | `css/fonts.css` |
+| App + plugin | Three static `.ttf`, compiled in via `juce_add_binary_data` | `assets/fonts/` |
+
+The web app inlines the font instead of linking it because a page opened
+straight from disk is an opaque origin and browsers refuse the font fetch —
+and opening `index.html` with no server is a supported way to run it. A `data:`
+URI needs no fetch at all. Subset to Latin at width 100, both faces come to
+~49 KB of CSS.
+
+On the native side `OhaLookAndFeel::getTypefaceForFont` maps plain to Regular,
+bold to Bold, and italic to Bold Italic 800 — italic is only the wordmark, and
+800 is the weight the site sets on its own brand line. The ♥ in the patch menu
+is not in Archivo (nor upstream) and falls through to the system font, as do
+the ⊓ / ⊿ waveform glyphs on the web panel.
+
+`tools/make-fonts.sh` regenerates every one of those files from the upstream
+variable fonts. It is not part of any build — the outputs are committed, so the
+web app still opens with zero build steps and CMake just reads the `.ttf`s. Run
+it only to change the typeface itself.
+
 ## Keeping the two DSP cores in sync
 
 `js/engine/worklet.js` (JavaScript) and `plugin/Source/OhaDSP.h` (C++) are

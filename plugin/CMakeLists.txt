@@ -34,6 +34,19 @@ target_sources(OhASynth PRIVATE
   Source/PluginEditor.cpp
 )
 
+# Archivo, the interface face shared with the web app and the product site.
+# Compiled in rather than installed, so the plugin looks the same on a machine
+# that has never seen the font. Regenerate the .ttf files with tools/make-fonts.sh.
+juce_add_binary_data(OhaFonts
+  HEADER_NAME OhaFonts.h
+  NAMESPACE OhaFonts
+  SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/fonts/Archivo-Regular.ttf"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/fonts/Archivo-Bold.ttf"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/fonts/Archivo-BoldItalic.ttf"
+)
+set_target_properties(OhaFonts PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
 target_compile_definitions(OhASynth PUBLIC
   JUCE_WEB_BROWSER=0
   JUCE_USE_CURL=0
@@ -42,7 +55,9 @@ target_compile_definitions(OhASynth PUBLIC
 )
 
 target_link_libraries(OhASynth
-  PRIVATE juce::juce_audio_utils
+  PRIVATE
+    juce::juce_audio_utils
+    OhaFonts
   PUBLIC
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags

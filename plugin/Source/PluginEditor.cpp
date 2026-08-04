@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+#include <OhaFonts.h>
+
 #include "PatchStore.h"
 
 // Only the standalone has an audio device to configure; this gives the panel
@@ -27,6 +29,15 @@ void drawTracked(juce::Graphics& g, const juce::String& text,
 
 // ---------------------------------------------------------------------
 OhaLookAndFeel::OhaLookAndFeel() {
+    // Archivo, the same face as the web app and the product site. Held here
+    // rather than looked up per draw: creating a typeface parses the file.
+    regular = juce::Typeface::createSystemTypefaceFor(
+        OhaFonts::ArchivoRegular_ttf, OhaFonts::ArchivoRegular_ttfSize);
+    bold = juce::Typeface::createSystemTypefaceFor(
+        OhaFonts::ArchivoBold_ttf, OhaFonts::ArchivoBold_ttfSize);
+    boldItalic = juce::Typeface::createSystemTypefaceFor(
+        OhaFonts::ArchivoBoldItalic_ttf, OhaFonts::ArchivoBoldItalic_ttfSize);
+
     setColour(juce::ResizableWindow::backgroundColourId, col::panel);
     setColour(juce::Slider::backgroundColourId, juce::Colour(0xff141416));
     setColour(juce::Slider::trackColourId, juce::Colour(0xff585860));
@@ -43,6 +54,14 @@ OhaLookAndFeel::OhaLookAndFeel() {
     setColour(juce::PopupMenu::backgroundColourId, col::panel2);
     setColour(juce::PopupMenu::textColourId, col::cream);
     setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(0xff44444d));
+}
+
+juce::Typeface::Ptr OhaLookAndFeel::getTypefaceForFont(const juce::Font& f) {
+    // Only the wordmark is italic, and it is the one place the panel wants the
+    // heavier 800 weight — the same weight the site sets on its brand line.
+    if (f.isItalic()) return boldItalic;
+    if (f.isBold())   return bold;
+    return regular;
 }
 
 void OhaLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h,

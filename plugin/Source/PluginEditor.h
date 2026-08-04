@@ -45,6 +45,10 @@ class OhaLookAndFeel : public juce::LookAndFeel_V4 {
 public:
     OhaLookAndFeel();
 
+    // Archivo for everything, compiled in — the panel must not depend on the
+    // font being installed. Bold italic is the wordmark.
+    juce::Typeface::Ptr getTypefaceForFont(const juce::Font&) override;
+
     // hardware-style fader: recessed track, tick marks, groove, capped thumb
     void drawLinearSlider(juce::Graphics&, int x, int y, int width, int height,
                           float sliderPos, float minSliderPos, float maxSliderPos,
@@ -54,6 +58,9 @@ public:
                               const juce::Colour& backgroundColour,
                               bool shouldDrawButtonAsHighlighted,
                               bool shouldDrawButtonAsDown) override;
+
+private:
+    juce::Typeface::Ptr regular, bold, boldItalic;
 };
 
 // Spring-back horizontal pitch-bend lever, as on the hardware.

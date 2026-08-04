@@ -12,6 +12,8 @@
   --blue: #4f9ed9;
   --green: #9bba5e;
   --led: #ff5a3c;
+  /* Archivo, self-hosted in css/fonts.css — same face as the product site */
+  --font-ui: 'Archivo', "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 14px;
 }
 
@@ -21,7 +23,9 @@ html, body {
   margin: 0;
   background: #141416;
   color: var(--cream);
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--font-ui);
+  /* never let the browser fake a weight or a slant Archivo already has */
+  font-synthesis: none;
 }
 
 #app {
