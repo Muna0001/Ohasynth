@@ -93,6 +93,19 @@
       vcaMode: 0, vcaLevel: 0.8,
       envA: 0.03, envD: 0.55, envS: 0.42, envR: 0.38,
       chorus: 1, bendDco: 0.1667, bendVcf: 0, velSens: 0.55, volume: 0.75
+    },
+    {
+      // Saw + pulse + a strong sub, slow LFO breathing the pulse width, dark
+      // filter that the envelope opens, chorus I (the slow deep one) for width.
+      name: 'WARM PAD',
+      lfoRate: 0.18, lfoDelay: 0.3,
+      dcoRange: 1, dcoLfo: 0.04, dcoPw: 0.6, dcoPwmMode: 1,
+      dcoSaw: 1, dcoPulse: 1, dcoSub: 0.45, dcoNoise: 0.02,
+      hpf: 1,
+      vcfFreq: 0.4, vcfRes: 0.12, vcfPol: 0, vcfEnv: 0.3, vcfLfo: 0.02, vcfKey: 0.5,
+      vcaMode: 0, vcaLevel: 0.8,
+      envA: 0.82, envD: 0.6, envS: 0.85, envR: 0.8,
+      chorus: 1, bendDco: 0.1667, bendVcf: 0, velSens: 0.15, volume: 0.72
     }
   ];
 })();

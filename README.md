@@ -95,7 +95,7 @@ index.html
 css/ohasynth.css           panel styling
 js/engine/worklet.js   the entire DSP core (runs inside an AudioWorklet)
 js/engine/engine.js    Oha.Engine — headless API (notes, params, patches)
-js/engine/presets.js   8 factory patches
+js/engine/presets.js   9 factory patches
 js/ui/panel.js         panel controls built from the param schema
 js/ui/keyboard.js      on-screen + computer keyboard
 js/ui/midi.js          Web MIDI (notes, velocity, bend, CC1, sustain)
@@ -113,7 +113,7 @@ AudioWorklet processor, so parameter changes are smoothed sample-accurately
 ## Part 3 — DAW plugin (Logic / any DAW)
 
 All panel parameters are host-automatable and saved with the DAW project; the
-8 factory presets are exposed as plugin programs and from the patch selector
+9 factory presets are exposed as plugin programs and from the patch selector
 in the editor. Every instance is independent, so you can run it on as many
 tracks as you like. The MENU button works here too and shares the same patch
 folder as the standalone app — only "Audio/MIDI Settings…" is app-only, since
@@ -201,8 +201,10 @@ The one intentional difference: only the plugin reads a host transport
 (`setHostTransport`). The web build has no host, so it syncs from MIDI clock
 or the manual BPM.
 
-Likewise `js/engine/presets.js` and `plugin/Source/Presets.h` hold the same 8
-factory patches, and the parameter schema in `js/engine/engine.js`
+Likewise `js/engine/presets.js` and `plugin/Source/Presets.h` hold the same 9
+factory patches — append new ones at the end, so existing plugin program
+indices keep pointing at the same sound in already-saved DAW projects — and the
+parameter schema in `js/engine/engine.js`
 (`Oha.PARAMS`) matches `createParameterLayout()` in
 `plugin/Source/PluginProcessor.cpp`.
 

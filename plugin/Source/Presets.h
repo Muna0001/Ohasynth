@@ -95,7 +95,19 @@ inline const std::vector<Preset>& factoryPresets() {
             { "vcfLfo", 0 }, { "vcfKey", 0.6f },
             { "vcaMode", 0 }, { "vcaLevel", 0.8f },
             { "envA", 0.03f }, { "envD", 0.55f }, { "envS", 0.42f }, { "envR", 0.38f },
-            { "chorus", 1 }, { "bendDco", 0.1667f }, { "bendVcf", 0 }, { "velSens", 0.55f }, { "volume", 0.75f } } }
+            { "chorus", 1 }, { "bendDco", 0.1667f }, { "bendVcf", 0 }, { "velSens", 0.55f }, { "volume", 0.75f } } },
+        // Saw + pulse + a strong sub, slow LFO breathing the pulse width, dark
+        // filter that the envelope opens, chorus I (the slow deep one) for width.
+        { "WARM PAD", {
+            { "lfoRate", 0.18f }, { "lfoDelay", 0.3f },
+            { "dcoRange", 1 }, { "dcoLfo", 0.04f }, { "dcoPw", 0.6f }, { "dcoPwmMode", 1 },
+            { "dcoSaw", 1 }, { "dcoPulse", 1 }, { "dcoSub", 0.45f }, { "dcoNoise", 0.02f },
+            { "hpf", 1 },
+            { "vcfFreq", 0.4f }, { "vcfRes", 0.12f }, { "vcfPol", 0 }, { "vcfEnv", 0.3f },
+            { "vcfLfo", 0.02f }, { "vcfKey", 0.5f },
+            { "vcaMode", 0 }, { "vcaLevel", 0.8f },
+            { "envA", 0.82f }, { "envD", 0.6f }, { "envS", 0.85f }, { "envR", 0.8f },
+            { "chorus", 1 }, { "bendDco", 0.1667f }, { "bendVcf", 0 }, { "velSens", 0.15f }, { "volume", 0.72f } } }
     };
     return presets;
 }
